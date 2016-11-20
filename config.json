@@ -1,0 +1,8 @@
+{
+    "provides": "pserver.gcloudstorage.interfaces.IGCloudBlobStore",
+    "factory": "pserver.gcloudstorage.storage.GCloudBlobStore",
+    "settings": {
+        "json_credentials": "XXXX.json",
+        "bucket": "XXX-bucket"
+    }
+}

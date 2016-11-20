@@ -11,20 +11,17 @@ from zope.schema.fieldproperty import FieldProperty
 from googleapiclient import http
 from googleapiclient import errors
 from zope.component import adapter
-from plone.dexterity.interfaces import IDexterityContent
+from plone.server.interfaces import IResource
 from plone.server.interfaces import IRequest
 from plone.server.interfaces import IFileManager
 from pserver.gcloudstorage.interfaces import IGCloudBlobStore
 from pserver.gcloudstorage.events import InitialGCloudUpload
 from pserver.gcloudstorage.events import FinishGCloudUpload
-from plone.jsonserializer.interfaces import IJsonCompatible
+from plone.server.json.interfaces import IValueToJson
 from googleapiclient import discovery
 from plone.server.transactions import get_current_request
 from aiohttp.web import StreamResponse
 from zope.event import notify
-import mimetypes
-import os
-import gcloud
 import logging
 import uuid
 import aiohttp
@@ -48,7 +45,7 @@ MAX_RETRIES = 5
 
 
 @adapter(IGCloudFile)
-@implementer(IJsonCompatible)
+@implementer(IValueToJson)
 def json_converter(value):
     if value is None:
         return value
@@ -60,7 +57,7 @@ def json_converter(value):
     }
 
 
-@adapter(IDexterityContent, IRequest, IGCloudFileField)
+@adapter(IResource, IRequest, IGCloudFileField)
 @implementer(IFileManager)
 class GCloudFileManager(object):
 
@@ -173,8 +170,9 @@ class GCloudFile(Persistent):
 
     filename = FieldProperty(IGCloudFile['filename'])
 
-    def __init__(self, contentType='application/octet-stream',
-                 filename=None):
+    def __init__(
+            self, contentType='application/octet-stream',
+            filename=None):
         if (
             filename is not None and
             contentType in ('', 'application/octet-stream')
@@ -304,8 +302,7 @@ class GCloudFile(Persistent):
 
 @implementer(IGCloudFileField)
 class GCloudFileField(Object):
-    """A NamedBlobFile field
-    """
+    """A NamedBlobFile field."""
 
     _type = GCloudFile
     schema = IGCloudFile

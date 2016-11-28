@@ -24,7 +24,8 @@ setup(
     install_requires=[
         'setuptools',
         'plone.server',
-        'protobuf==3.0.0',
+        'protobuf',
+        'oauth2client',
         'google-api-python-client',
         'gcloud',
         'ZEO',

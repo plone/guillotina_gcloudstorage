@@ -21,7 +21,7 @@ from plone.server.json.interfaces import IValueToJson
 from googleapiclient import discovery
 from plone.server.transactions import get_current_request
 from aiohttp.web import StreamResponse
-from zope.event import notify
+from plone.server.events import notify
 import logging
 import uuid
 import aiohttp
@@ -227,7 +227,7 @@ class GCloudFile(Persistent):
             self._resumable_uri = call.headers['Location']
         session.close()
         self._current_upload = 0
-        notify(InitialGCloudUpload(context))
+        await notify(InitialGCloudUpload(context))
 
     async def appendData(self, data):
         session = aiohttp.ClientSession()
@@ -263,7 +263,7 @@ class GCloudFile(Persistent):
                 pass
         self._uri = self._upload_file_id
         self._upload_file_id = None
-        notify(FinishGCloudUpload(context))
+        await notify(FinishGCloudUpload(context))
 
     async def deleteUpload(self):
         if hasattr(self, '_uri') and self._uri is not None:

@@ -27,6 +27,7 @@ setup(
         'protobuf',
         'oauth2client',
         'google-api-python-client',
+        'google-cloud-storage',
         'gcloud',
         'ZEO',
         'ujson',

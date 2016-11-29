@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from gcloud import storage as gs
+from google.cloud import storage
+from google.cloud.exceptions import NotFound
 from zope.schema import Object
 from pserver.gcloudstorage.interfaces import IGCloudFile
 from pserver.gcloudstorage.interfaces import IGCloudFileField
@@ -74,18 +75,27 @@ class GCloudFileManager(object):
         if file is None:
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
-        file._md5hash = self.request.headers['X-UPLOAD-MD5HASH']
-        file._size = self.request.headers['X-UPLOAD-SIZE']
-        file.filename = self.request.headers['X-UPLOAD-FILENAME']
+        if 'X-UPLOAD-MD5HASH' in self.request.headers:
+            file._md5hash = self.request.headers['X-UPLOAD-MD5HASH']
+        else:
+            file._md5hash = None
+
+        if 'X-UPLOAD-SIZE' in self.request.headers:
+            file._size = self.request.headers['X-UPLOAD-SIZE']
+        else:
+            raise AttributeError('x-upload-size header needed')
+
+        if 'X-UPLOAD-FILENAME' in self.request.headers:
+            file.filename = self.request.headers['X-UPLOAD-FILENAME']
+        else:
+            file.filename = uuid.uuid4().hex
+
         await file.initUpload(self.context)
         try:
             data = await self.request.content.readexactly(CHUNK_SIZE)
         except asyncio.IncompleteReadError as e:
             data = e.partial
-        # while len(data) < CHUNK_SIZE:
-        #     if self.request.content.is_eof():
-        #         break
-        #     data += await self.request.content.read(CHUNK_SIZE)
+
         count = 0
         while data:
             old_current_upload = file._current_upload
@@ -104,11 +114,7 @@ class GCloudFileManager(object):
                     data += await self.request.content.readexactly(bytes_to_read)
                 except asyncio.IncompleteReadError as e:
                     data += e.partial
-                # data = await self.request.content.read(CHUNK_SIZE)
-                # while len(data) < CHUNK_SIZE + 1:
-                #     if self.request.content.is_eof():
-                #         break
-                #     data += await self.request.content.read(CHUNK_SIZE)
+
             else:
                 count += 1
                 if count > MAX_RETRIES:
@@ -173,11 +179,6 @@ class GCloudFile(Persistent):
     def __init__(
             self, contentType='application/octet-stream',
             filename=None):
-        if (
-            filename is not None and
-            contentType in ('', 'application/octet-stream')
-        ):
-            contentType = get_contenttype(filename=filename)
         self.contentType = contentType
 
         if filename is not None:
@@ -194,14 +195,14 @@ class GCloudFile(Persistent):
         request = get_current_request()
         if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
             req = util._service.objects().delete(
-                bucket=util._bucket, object=self._upload_file_id)
+                bucket=util.bucket, object=self._upload_file_id)
             try:
                 req.execute()
             except errors.HttpError:
                 pass
 
         self._upload_file_id = request._site_id + '/' + uuid.uuid4().hex
-        init_url = UPLOAD_URL.format(bucket=util._bucket) + '&name=' +\
+        init_url = UPLOAD_URL.format(bucket=util.bucket) + '&name=' +\
             self._upload_file_id
         session = aiohttp.ClientSession()
 
@@ -256,7 +257,7 @@ class GCloudFile(Persistent):
         # It would be great to do on AfterCommit
         if hasattr(self, '_uri') and self._uri is not None:
             req = util._service.objects().delete(
-                bucket=util._bucket, object=self._uri)
+                bucket=util.bucket, object=self._uri)
             try:
                 resp = req.execute()
             except errors.HttpError:
@@ -268,7 +269,7 @@ class GCloudFile(Persistent):
     async def deleteUpload(self):
         if hasattr(self, '_uri') and self._uri is not None:
             req = util._service.objects().delete(
-                bucket=util._bucket, object=self._uri)
+                bucket=util.bucket, object=self._uri)
             resp = req.execute()
             return resp
         else:
@@ -277,7 +278,7 @@ class GCloudFile(Persistent):
     async def download(self, buf):
         util = getUtility(IGCloudBlobStore)
         req = util._service.objects().get_media(
-            bucket=util._bucket, object=self._uri)
+            bucket=util.bucket, object=self._uri)
         downloader = http.MediaIoBaseDownload(buf, req, chunksize=CHUNK_SIZE)
         return downloader
 
@@ -323,6 +324,7 @@ class GCloudBlobStore(object):
             self._json_credentials, SCOPES)
         self._service = discovery.build(
             'storage', 'v1', credentials=self._credentials)
+        self._client = storage.Client(credentials=self._credentials)
         self._bucket = settings['bucket']
         self._access_token = self._credentials.get_access_token()
 
@@ -331,6 +333,17 @@ class GCloudBlobStore(object):
         if self._access_token.expires_in < 1:
             self._access_token = self._credentials.get_access_token()
         return self._access_token.access_token
+
+    @property
+    def bucket(self):
+        request = get_current_request()
+        bucket_name = self._bucket + '_' + request._site_id
+        try:
+            bucket = self._client.get_bucket(bucket_name)
+        except NotFound:
+            bucket = self._client.create_bucket(bucket_name)
+            log.warn('We needed to create bucket ' + bucket_name)
+        return bucket_name
 
     async def initialize(self, app=None):
         # No asyncio loop to run

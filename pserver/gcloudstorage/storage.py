@@ -201,7 +201,7 @@ class GCloudFileManager(object):
         expiration = self._resumable_uri_date + timedelta(days=7)
 
         resp = Response(headers=aiohttp.MultiDict({
-            'Upload-Offset': file.actualSize(),
+            'Upload-Offset': str(file.actualSize()),
             'Tus-Resumable': '1.0.0',
             'Upload-Expires': expiration.isoformat()
         }))
@@ -213,7 +213,7 @@ class GCloudFileManager(object):
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
         resp = Response(headers=aiohttp.MultiDict({
-            'Upload-Offset': file.actualSize(),
+            'Upload-Offset': str(file.actualSize()),
             'Tus-Resumable': '1.0.0'
         }))
         return resp

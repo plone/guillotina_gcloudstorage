@@ -429,7 +429,11 @@ class GCloudBlobStore(object):
     @property
     def bucket(self):
         request = get_current_request()
-        bucket_name = request._site_id.lower() + '.' + self._bucket
+        if '.' in self._bucket:
+            char_delimiter = '.'
+        else:
+            char_delimiter = '_'
+        bucket_name = request._site_id.lower() + char_delimiter + self._bucket
         try:
             bucket = self._client.get_bucket(bucket_name)  # noqa
         except NotFound:

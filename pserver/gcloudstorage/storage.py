@@ -25,6 +25,7 @@ from aiohttp.web import StreamResponse
 from plone.server.browser import Response
 from plone.server.events import notify
 from datetime import datetime
+from dateutil.tz import tzlocal
 from datetime import timedelta
 import logging
 import uuid
@@ -315,7 +316,7 @@ class GCloudFile(Persistent):
             self._resumable_uri = call.headers['Location']
         session.close()
         self._current_upload = 0
-        self._resumable_uri_date = datetime.now()
+        self._resumable_uri_date = datetime.now(tz=tzlocal())
         await notify(InitialGCloudUpload(context))
 
     async def appendData(self, data):
@@ -428,7 +429,7 @@ class GCloudBlobStore(object):
     @property
     def bucket(self):
         request = get_current_request()
-        bucket_name = self._bucket + '_' + request._site_id
+        bucket_name = request._site_id.lower() + '.' + self._bucket + '.atlasense.com'
         try:
             bucket = self._client.get_bucket(bucket_name)  # noqa
         except NotFound:

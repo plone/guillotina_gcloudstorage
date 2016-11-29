@@ -341,7 +341,7 @@ class GCloudFile(Persistent):
         session.close()
         return call
 
-    async def actualSize(self):
+    def actualSize(self):
         return self._current_upload
 
     async def finishUpload(self, context):

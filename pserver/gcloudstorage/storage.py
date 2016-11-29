@@ -22,12 +22,16 @@ from plone.server.json.interfaces import IValueToJson
 from googleapiclient import discovery
 from plone.server.transactions import get_current_request
 from aiohttp.web import StreamResponse
+from plone.server.browser import Response
 from plone.server.events import notify
+from datetime import datetime
+from datetime import timedelta
 import logging
 import uuid
 import aiohttp
 import asyncio
 import json
+import base64
 from io import BytesIO
 
 try:
@@ -40,7 +44,7 @@ log = logging.getLogger(__name__)
 MAX_SIZE = 1073741824
 
 SCOPES = ['https://www.googleapis.com/auth/devstorage.read_write']
-UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'
+UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'  # noqa
 CHUNK_SIZE = 524288
 MAX_RETRIES = 5
 
@@ -68,7 +72,8 @@ class GCloudFileManager(object):
         self.field = field
 
     async def upload(self):
-        """ In order to support TUS and IO upload
+        """In order to support TUS and IO upload.
+
         we need to provide an upload that concats the incoming
         """
         file = self.field.get(self.context)
@@ -111,7 +116,7 @@ class GCloudFileManager(object):
             if resp.status == 308:
                 count = 0
                 try:
-                    data += await self.request.content.readexactly(bytes_to_read)
+                    data += await self.request.content.readexactly(bytes_to_read)  # noqa
                 except asyncio.IncompleteReadError as e:
                     data += e.partial
 
@@ -122,25 +127,104 @@ class GCloudFileManager(object):
         # Test resp and checksum to finish upload
         await file.finishUpload(self.context)
 
-    async def tus_post(self):
-        """ FROM POST
-        """
-        pass
+    async def tus_create(self):
+        file = self.field.get(self.context)
+        if file is None:
+            file = GCloudFile(contentType=self.request.content_type)
+            self.field.set(self.context, file)
+        if 'CONTENT-LENGTH' in self.request.headers:
+            self._current_upload = self.request.headers['CONTENT-LENGTH']
+        else:
+            self._current_upload = 0
+
+        if 'UPLOAD-LENGTH' in self.request.headers:
+            self._size = self.request.headers['UPLOAD-LENGTH']
+        else:
+            raise AttributeError('We need upload-length header')
+
+        if 'TUS-RESUMABLE' not in self.request.headers:
+            raise AttributeError('Its a TUS needs a TUS version')
+
+        if 'UPLOAD-METADATA' not in self.request.headers:
+            file.filename = uuid.uuid4().hex
+        else:
+            filename = self.request.headers['UPLOAD-METADATA']
+            file.filename = base64.b64decode(filename.split()[1])
+
+        await self.initUpload(self.context)
+        resp = Response(headers=aiohttp.MultiDict({
+            'Location': self.request.path,
+            'Tus-Resumable': '1.0.0'
+        }, status=201))
+        return resp
 
     async def tus_patch(self):
-        """ FROM POST
-        """
-        pass
+        file = self.field.get(self.context)
+        if 'CONTENT-LENGTH' in self.request.headers:
+            to_upload = self.request.headers['CONTENT-LENGTH']
+        else:
+            raise AttributeError('No content-length header')
+
+        if 'UPLOAD-OFFSET' in self.request.headers:
+            file._current_upload = self.request.headers['UPLOAD-OFFSET']
+        else:
+            raise AttributeError('No upload-offset header')
+
+        try:
+            data = await self.request.content.readexactly(to_upload)
+        except asyncio.IncompleteReadError as e:
+            data = e.partial
+        count = 0
+        while data:
+            old_current_upload = file._current_upload
+            resp = await file.appendData(data)
+            readed_bytes = file._current_upload - old_current_upload
+
+            data = data[readed_bytes:]
+
+            bytes_to_read = readed_bytes
+
+            if resp.status in [200, 201]:
+                break
+            if resp.status == 308:
+                count = 0
+                try:
+                    data += await self.request.content.readexactly(bytes_to_read)  # noqa
+                except asyncio.IncompleteReadError as e:
+                    data += e.partial
+
+            else:
+                count += 1
+                if count > MAX_RETRIES:
+                    raise AttributeError('MAX retries error')
+        expiration = self._resumable_uri_date + timedelta(days=7)
+
+        resp = Response(headers=aiohttp.MultiDict({
+            'Upload-Offset': file.actualSize(),
+            'Tus-Resumable': '1.0.0',
+            'Upload-Expires': expiration.isoformat()
+        }))
+        return resp
 
     async def tus_head(self):
-        """ FROM POST
-        """
-        pass
+        file = self.field.get(self.context)
+        if file is None:
+            file = GCloudFile(contentType=self.request.content_type)
+            self.field.set(self.context, file)
+        resp = Response(headers=aiohttp.MultiDict({
+            'Upload-Offset': file.actualSize(),
+            'Tus-Resumable': '1.0.0'
+        }))
+        return resp
 
     async def tus_options(self):
-        """ FROM OPTIONS
-        """
-        pass
+        resp = Response(headers=aiohttp.MultiDict({
+            'Tus-Resumable': '1.0.0',
+            'Tus-Version': '1.0.0',
+            'Tus-Max-Size': '1073741824',
+            'Tus-Extension': 'creation,expiration'
+        }))
+        return resp
 
     async def download(self):
         file = self.field.get(self.context)
@@ -172,28 +256,31 @@ class GCloudFileManager(object):
 
 @implementer(IGCloudFile)
 class GCloudFile(Persistent):
-    """A file stored in a GCloud, with a filename"""
+    """File stored in a GCloud, with a filename."""
 
     filename = FieldProperty(IGCloudFile['filename'])
 
-    def __init__(
-            self, contentType='application/octet-stream',
+    def __init__(  # noqa
+            self,
+            contentType='application/octet-stream',
             filename=None):
         self.contentType = contentType
-
+        self._current_upload = 0
         if filename is not None:
             self.filename = filename
+        elif self.filename is not None:
+            self.filename = uuid.uuid4().hex
 
     async def initUpload(self, context):
-        """
-            self._uload_file_id : temporal url to image beeing uploaded
-            self._resumable_uri : uri to resumable upload
-            self._uri : finished uploaded image
-        """
+        """Init an upload.
 
+        self._uload_file_id : temporal url to image beeing uploaded
+        self._resumable_uri : uri to resumable upload
+        self._uri : finished uploaded image
+        """
         util = getUtility(IGCloudBlobStore)
         request = get_current_request()
-        if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
+        if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:  # noqa
             req = util._service.objects().delete(
                 bucket=util.bucket, object=self._upload_file_id)
             try:
@@ -228,6 +315,7 @@ class GCloudFile(Persistent):
             self._resumable_uri = call.headers['Location']
         session.close()
         self._current_upload = 0
+        self._resumable_uri_date = datetime.now()
         await notify(InitialGCloudUpload(context))
 
     async def appendData(self, data):
@@ -245,12 +333,15 @@ class GCloudFile(Persistent):
                     'Content-Range': content_range
                 },
                 data=data) as call:
-            text = await call.text()
+            text = await call.text()  # noqa 
             assert call.status in [200, 201, 308]
             if call.status == 308:
                 self._current_upload = int(call.headers['Range'].split('-')[1])
         session.close()
         return call
+
+    async def actualSize(self):
+        return self._current_upload
 
     async def finishUpload(self, context):
         util = getUtility(IGCloudBlobStore)
@@ -259,7 +350,7 @@ class GCloudFile(Persistent):
             req = util._service.objects().delete(
                 bucket=util.bucket, object=self._uri)
             try:
-                resp = req.execute()
+                resp = req.execute()  # noqa
             except errors.HttpError:
                 pass
         self._uri = self._upload_file_id
@@ -282,13 +373,13 @@ class GCloudFile(Persistent):
         downloader = http.MediaIoBaseDownload(buf, req, chunksize=CHUNK_SIZE)
         return downloader
 
-    def _setData(self, data):
+    def _set_data(self, data):
         raise NotImplemented('Only specific upload permitted')
 
-    def _getData(self):
+    def _get_data(self):
         raise NotImplemented('Only specific download permitted')
 
-    data = property(_getData, _setData)
+    data = property(_get_data, _set_data)
 
     @property
     def size(self):
@@ -297,7 +388,7 @@ class GCloudFile(Persistent):
         else:
             return None
 
-    def getSize(self):
+    def getSize(self):  # noqa
         return self.size
 
 
@@ -339,9 +430,9 @@ class GCloudBlobStore(object):
         request = get_current_request()
         bucket_name = self._bucket + '_' + request._site_id
         try:
-            bucket = self._client.get_bucket(bucket_name)
+            bucket = self._client.get_bucket(bucket_name)  # noqa
         except NotFound:
-            bucket = self._client.create_bucket(bucket_name)
+            bucket = self._client.create_bucket(bucket_name)  # noqa
             log.warn('We needed to create bucket ' + bucket_name)
         return bucket_name
 

@@ -138,12 +138,12 @@ class GCloudFileManager(object):
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
         if 'CONTENT-LENGTH' in self.request.headers:
-            self._current_upload = self.request.headers['CONTENT-LENGTH']
+            file._current_upload = self.request.headers['CONTENT-LENGTH']
         else:
-            self._current_upload = 0
+            file._current_upload = 0
 
         if 'UPLOAD-LENGTH' in self.request.headers:
-            self._size = self.request.headers['UPLOAD-LENGTH']
+            file._size = self.request.headers['UPLOAD-LENGTH']
         else:
             raise AttributeError('We need upload-length header')
 
@@ -154,7 +154,7 @@ class GCloudFileManager(object):
             file.filename = uuid.uuid4().hex
         else:
             filename = self.request.headers['UPLOAD-METADATA']
-            file.filename = base64.b64decode(filename.split()[1])
+            file.filename = str(base64.b64decode(filename.split()[1]))
 
         await file.initUpload(self.context)
         resp = Response(headers=aiohttp.MultiDict({
@@ -202,7 +202,10 @@ class GCloudFileManager(object):
                 count += 1
                 if count > MAX_RETRIES:
                     raise AttributeError('MAX retries error')
-        expiration = self._resumable_uri_date + timedelta(days=7)
+        expiration = file._resumable_uri_date + timedelta(days=7)
+
+        if file._current_upload >= file._size:
+            file.finishUpload(self.context)
 
         resp = Response(headers=aiohttp.MultiDict({
             'Upload-Offset': str(file.actualSize()),
@@ -353,6 +356,7 @@ class GCloudFile(Persistent):
     async def finishUpload(self, context):
         util = getUtility(IGCloudBlobStore)
         # It would be great to do on AfterCommit
+        # Delete the old file and update the new uri
         if hasattr(self, '_uri') and self._uri is not None:
             req = util._service.objects().delete(
                 bucket=util.bucket, object=self._uri)

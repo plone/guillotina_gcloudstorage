@@ -50,6 +50,10 @@ CHUNK_SIZE = 524288
 MAX_RETRIES = 5
 
 
+class GoogleCloudException(Exception):
+    pass
+
+
 @adapter(IGCloudFile)
 @implementer(IValueToJson)
 def json_converter(value):
@@ -312,7 +316,9 @@ class GCloudFile(Persistent):
                     'Content-Length': str(call_size)
                 },
                 data=metadata) as call:
-            assert call.status == 200
+            if call.status != 200:
+                text = await call.text()
+                raise GoogleCloudException(text)
             self._resumable_uri = call.headers['Location']
         session.close()
         self._current_upload = 0

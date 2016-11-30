@@ -152,7 +152,7 @@ class GCloudFileManager(object):
             filename = self.request.headers['UPLOAD-METADATA']
             file.filename = base64.b64decode(filename.split()[1])
 
-        await self.initUpload(self.context)
+        await file.initUpload(self.context)
         resp = Response(headers=aiohttp.MultiDict({
             'Location': self.request.path,
             'Tus-Resumable': '1.0.0'

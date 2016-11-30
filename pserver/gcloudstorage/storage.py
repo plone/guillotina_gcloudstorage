@@ -160,7 +160,7 @@ class GCloudFileManager(object):
         resp = Response(headers=aiohttp.MultiDict({
             'Location': self.request.path,
             'Tus-Resumable': '1.0.0'
-        }, status=201))
+        }), status=201)
         return resp
 
     async def tus_patch(self):

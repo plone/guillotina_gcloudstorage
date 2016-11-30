@@ -4,6 +4,7 @@ from google.cloud.exceptions import NotFound
 from zope.schema import Object
 from pserver.gcloudstorage.interfaces import IGCloudFile
 from pserver.gcloudstorage.interfaces import IGCloudFileField
+from plone.server.interfaces import IAbsoluteURL
 from oauth2client.service_account import ServiceAccountCredentials
 from zope.interface import implementer
 from zope.component import getUtility
@@ -157,8 +158,9 @@ class GCloudFileManager(object):
             file.filename = str(base64.b64decode(filename.split()[1]))
 
         await file.initUpload(self.context)
+        # Location will need to be adapted on aiohttp 1.1.x
         resp = Response(headers=aiohttp.MultiDict({
-            'Location': self.request.path,
+            'Location': IAbsoluteURL(self.context, self.request)() + '/@tusupload/' + self.field.__name__,  # noqa
             'Tus-Resumable': '1.0.0'
         }), status=201)
         return resp

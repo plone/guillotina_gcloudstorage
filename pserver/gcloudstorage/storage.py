@@ -168,7 +168,7 @@ class GCloudFileManager(object):
     async def tus_patch(self):
         file = self.field.get(self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
-            to_upload = self.request.headers['CONTENT-LENGTH']
+            to_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
             raise AttributeError('No content-length header')
 

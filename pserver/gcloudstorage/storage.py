@@ -219,8 +219,7 @@ class GCloudFileManager(object):
     async def tus_head(self):
         file = self.field.get(self.context)
         if file is None:
-            file = GCloudFile(contentType=self.request.content_type)
-            self.field.set(self.context, file)
+            raise KeyError('No file on this context')
         resp = Response(headers=aiohttp.MultiDict({
             'Upload-Offset': str(file.actualSize()),
             'Tus-Resumable': '1.0.0'
@@ -440,6 +439,7 @@ class GCloudBlobStore(object):
 
         if expires_margin < expires:
             self._access_token = self._credentials.get_access_token()
+            self._creation_access_token = datetime.now()
         return self._access_token.access_token
 
     @property

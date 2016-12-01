@@ -431,10 +431,14 @@ class GCloudBlobStore(object):
         self._client = storage.Client(credentials=self._credentials)
         self._bucket = settings['bucket']
         self._access_token = self._credentials.get_access_token()
+        self._creation_access_token = datetime.now()
 
     @property
     def access_token(self):
-        if self._access_token.expires_in < 1:
+        expires = self._creation_access_token + timedelta(seconds=self._access_token.expires_in)  # noqa
+        expires_margin = datetime.now() - timedelta(seconds=60)
+
+        if expires_margin < expires:
             self._access_token = self._credentials.get_access_token()
         return self._access_token.access_token
 

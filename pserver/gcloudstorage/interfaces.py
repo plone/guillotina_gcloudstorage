@@ -27,11 +27,15 @@ class IGCloudFile(IFile):
 
     catalog(extension='string')
     index(extension='non_analyzed')
-    extension = TextLine(title='Extension of the file')
+    extension = TextLine(
+        title='Extension of the file',
+        default='')
 
     catalog(md5='string')
     index(md5='non_analyzed')
-    md5 = TextLine(title='MD5')
+    md5 = TextLine(
+        title='MD5',
+        default='')
 
 # Events
 

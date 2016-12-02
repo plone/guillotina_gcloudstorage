@@ -64,7 +64,9 @@ def json_converter(value):
     return {
         'filename': value.filename,
         'contenttype': value.contentType,
-        'size': value.size
+        'size': value.size,
+        'extension': value.extension,
+        'md5': value.md5
     }
 
 

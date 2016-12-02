@@ -438,12 +438,14 @@ class GCloudBlobStore(object):
 
     @property
     def access_token(self):
-        expires = self._creation_access_token + timedelta(seconds=self._access_token.expires_in)  # noqa
-        expires_margin = datetime.now() - timedelta(seconds=60)
+        # expires = self._creation_access_token + timedelta(seconds=self._access_token.expires_in)  # noqa
+        # expires_margin = datetime.now() - timedelta(seconds=60)
 
-        if expires_margin < expires:
-            self._access_token = self._credentials.get_access_token()
-            self._creation_access_token = datetime.now()
+        # if expires_margin < expires:
+        #     self._access_token = self._credentials.get_access_token()
+        #     self._creation_access_token = datetime.now()
+        self._access_token = self._credentials.get_access_token()
+        self._creation_access_token = datetime.now()
         return self._access_token.access_token
 
     @property

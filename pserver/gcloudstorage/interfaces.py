@@ -12,13 +12,6 @@ class IGCloudFileField(IFileField):
     """Field marked as GCloudFileField
     """
 
-    catalog(extension='string')
-    index(extension='non_analyzed')
-    extension = TextLine(title='Extension of the file')
-
-    catalog(md5='string')
-    index(md5='non_analyzed')
-    md5 = TextLine(title='MD5')
 
 # Configuration Utility
 
@@ -32,6 +25,13 @@ class IGCloudFile(IFile):
     """Marker for a GCloudFile
     """
 
+    catalog(extension='string')
+    index(extension='non_analyzed')
+    extension = TextLine(title='Extension of the file')
+
+    catalog(md5='string')
+    index(md5='non_analyzed')
+    md5 = TextLine(title='MD5')
 
 # Events
 

@@ -268,6 +268,8 @@ class GCloudFile(Persistent):
     """File stored in a GCloud, with a filename."""
 
     filename = FieldProperty(IGCloudFile['filename'])
+    extension = FieldProperty(IGCloudFile['extension'])
+    md5 = FieldProperty(IGCloudFile['md5'])
 
     def __init__(  # noqa
             self,

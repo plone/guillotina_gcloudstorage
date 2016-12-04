@@ -141,7 +141,7 @@ class GCloudFileManager(object):
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
         if 'CONTENT-LENGTH' in self.request.headers:
-            file._current_upload = self.request.headers['CONTENT-LENGTH']
+            file._current_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
             file._current_upload = 0
 

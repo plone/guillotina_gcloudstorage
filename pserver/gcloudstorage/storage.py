@@ -175,7 +175,7 @@ class GCloudFileManager(object):
             raise AttributeError('No content-length header')
 
         if 'UPLOAD-OFFSET' in self.request.headers:
-            file._current_upload = self.request.headers['UPLOAD-OFFSET']
+            file._current_upload = int(self.request.headers['UPLOAD-OFFSET'])
         else:
             raise AttributeError('No upload-offset header')
 

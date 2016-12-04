@@ -94,7 +94,7 @@ class GCloudFileManager(object):
             file._md5hash = None
 
         if 'X-UPLOAD-SIZE' in self.request.headers:
-            file._size = self.request.headers['X-UPLOAD-SIZE']
+            file._size = int(self.request.headers['X-UPLOAD-SIZE'])
         else:
             raise AttributeError('x-upload-size header needed')
 
@@ -146,7 +146,7 @@ class GCloudFileManager(object):
             file._current_upload = 0
 
         if 'UPLOAD-LENGTH' in self.request.headers:
-            file._size = self.request.headers['UPLOAD-LENGTH']
+            file._size = int(self.request.headers['UPLOAD-LENGTH'])
         else:
             raise AttributeError('We need upload-length header')
 
@@ -319,7 +319,7 @@ class GCloudFile(Persistent):
                 headers={
                     'AUTHORIZATION': 'Bearer %s' % util.access_token,
                     'X-Upload-Content-Type': self.contentType,
-                    'X-Upload-Content-Length': self._size,
+                    'X-Upload-Content-Length': str(self._size),
                     'Content-Type': 'application/json; charset=UTF-8',
                     'Content-Length': str(call_size)
                 },

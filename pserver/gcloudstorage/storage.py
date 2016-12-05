@@ -187,6 +187,8 @@ class GCloudFileManager(object):
         while data:
             old_current_upload = file._current_upload
             resp = await file.appendData(data)
+            if 'Range' in resp.headers:
+                self._current_upload = int(resp.headers['Range'].split('-')[1])
             readed_bytes = file._current_upload - old_current_upload
 
             data = data[readed_bytes:]

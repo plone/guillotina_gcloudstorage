@@ -190,10 +190,11 @@ class GCloudFileManager(object):
         while data:
             old_current_upload = file._current_upload
             resp = await file.appendData(data)
-            if 'Range' in resp.headers:
-                self._current_upload = int(resp.headers['Range'].split('-')[1])
+
+            # The amount of bytes that are readed
             readed_bytes = file._current_upload - old_current_upload + 1
 
+            # Cut the data so there is only the needed data
             data = data[readed_bytes:]
 
             bytes_to_read = readed_bytes
@@ -203,7 +204,7 @@ class GCloudFileManager(object):
             if len(data) < 262144:
                 break
             if resp.status in [200, 201]:
-                break
+                file.finishUpload(self.context)
             if resp.status in [400]:
                 break
             if resp.status == 308:
@@ -219,8 +220,6 @@ class GCloudFileManager(object):
                     raise AttributeError('MAX retries error')
         expiration = file._resumable_uri_date + timedelta(days=7)
 
-        if file._current_upload + 1 >= file._size:
-            file.finishUpload(self.context)
         resp = Response(headers=aiohttp.MultiDict({
             'Upload-Offset': str(file.actualSize() + 1),
             'Tus-Resumable': '1.0.0',
@@ -360,11 +359,11 @@ class GCloudFile(Persistent):
                 },
                 data=data) as call:
             text = await call.text()  # noqa
-            # if call.status not in [400]:
-            #     import pdb; pdb.set_trace()
             # assert call.status in [200, 201, 308]
             if call.status == 308:
                 self._current_upload = int(call.headers['Range'].split('-')[1])
+            if call.status in [200, 201]:
+                self._current_upload = self._size
         session.close()
         return call
 

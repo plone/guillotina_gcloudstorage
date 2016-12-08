@@ -393,8 +393,12 @@ class GCloudFile(Persistent):
 
     async def download(self, buf):
         util = getUtility(IGCloudBlobStore)
+        if not hasattr(self, '_uri'):
+            url = self._upload_file_id
+        else:
+            url = self._uri
         req = util._service.objects().get_media(
-            bucket=util.bucket, object=self._uri)
+            bucket=util.bucket, object=url)
         downloader = http.MediaIoBaseDownload(buf, req, chunksize=CHUNK_SIZE)
         return downloader
 

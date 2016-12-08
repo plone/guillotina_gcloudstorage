@@ -150,6 +150,9 @@ class GCloudFileManager(object):
         else:
             raise AttributeError('We need upload-length header')
 
+        if 'UPLOAD-MD5' in self.request.headers:
+            file._md5hash = self.request.headers['UPLOAD-MD5']
+
         if 'TUS-RESUMABLE' not in self.request.headers:
             raise AttributeError('Its a TUS needs a TUS version')
 
@@ -277,8 +280,6 @@ class GCloudFile(Persistent):
     """File stored in a GCloud, with a filename."""
 
     filename = FieldProperty(IGCloudFile['filename'])
-    extension = FieldProperty(IGCloudFile['extension'])
-    md5 = FieldProperty(IGCloudFile['md5'])
 
     def __init__(  # noqa
             self,
@@ -288,6 +289,9 @@ class GCloudFile(Persistent):
         self._current_upload = 0
         if filename is not None:
             self.filename = filename
+            extension_discovery = filename.split('.')
+            if len(extension_discovery) > 1:
+                self._extension = extension_discovery[-1]
         elif self.filename is not None:
             self.filename = uuid.uuid4().hex
 
@@ -414,6 +418,20 @@ class GCloudFile(Persistent):
     def size(self):
         if hasattr(self, '_size'):
             return self._size
+        else:
+            return None
+
+    @property
+    def md5(self):
+        if hasattr(self, '_md5hash'):
+            return self._md5hash
+        else:
+            return None
+
+    @property
+    def extension(self):
+        if hasattr(self, '_extension'):
+            return self._extension
         else:
             return None
 

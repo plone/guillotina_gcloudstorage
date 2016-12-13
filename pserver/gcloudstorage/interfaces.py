@@ -5,7 +5,7 @@ from zope.interface import interfaces
 from plone.server.interfaces import IFile
 from zope.schema import TextLine
 from plone.server.directives import index
-from plone.server.directives import catalog
+from plone.server.directives import metadata
 
 
 class IGCloudFileField(IFileField):
@@ -25,14 +25,14 @@ class IGCloudFile(IFile):
     """Marker for a GCloudFile
     """
 
-    catalog(extension='string')
-    index(extension='non_analyzed')
+    metadata('extension', 'md5')
+
+    index('extension', type='text')
     extension = TextLine(
         title='Extension of the file',
         default='')
 
-    catalog(md5='string')
-    index(md5='non_analyzed')
+    index('md5', type='text')
     md5 = TextLine(
         title='MD5',
         default='')

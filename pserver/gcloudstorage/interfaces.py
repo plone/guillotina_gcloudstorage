@@ -26,7 +26,6 @@ class IGCloudFile(IFile):
     """
 
     metadata('extension', 'md5')
-
     index('extension', type='text')
     extension = TextLine(
         title='Extension of the file',

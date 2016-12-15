@@ -457,11 +457,13 @@ class GCloudBlobStore(object):
 
     def __init__(self, settings):
         self._json_credentials = settings['json_credentials']
+        self._project = settings['project'] if 'project' in settings else None
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
             self._json_credentials, SCOPES)
         self._service = discovery.build(
             'storage', 'v1', credentials=self._credentials)
-        self._client = storage.Client(credentials=self._credentials)
+        self._client = storage.Client(
+            project=self._project, credentials=self._credentials)
         self._bucket = settings['bucket']
         self._access_token = self._credentials.get_access_token()
         self._creation_access_token = datetime.now()

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from zope.interface import Interface
 from plone.server.interfaces import IFileField
+from plone.server.interfaces.events import IFileFinishUploaded
 from zope.interface import interfaces
 from plone.server.interfaces import IFile
 from zope.schema import TextLine
@@ -43,6 +44,6 @@ class IInitialGCloudUpload(interfaces.IObjectEvent):
     """
 
 
-class IFinishGCloudUpload(interfaces.IObjectEvent):
+class IFinishGCloudUpload(IFileFinishUploaded):
     """An upload has started
     """

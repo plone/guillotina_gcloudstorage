@@ -26,17 +26,6 @@ class IGCloudFile(IFile):
     """Marker for a GCloudFile
     """
 
-    metadata('extension', 'md5')
-    index('extension', type='text')
-    extension = TextLine(
-        title='Extension of the file',
-        default='')
-
-    index('md5', type='text')
-    md5 = TextLine(
-        title='MD5',
-        default='')
-
 # Events
 
 class IInitialGCloudUpload(interfaces.IObjectEvent):

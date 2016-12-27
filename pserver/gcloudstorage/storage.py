@@ -93,6 +93,11 @@ class GCloudFileManager(object):
         else:
             file._md5hash = None
 
+        if 'X-UPLOAD-EXTENSION' in self.request.headers:
+            file._extension = self.request.headers['X-UPLOAD-EXTENSION']
+        else:
+            file._extension = None
+
         if 'X-UPLOAD-SIZE' in self.request.headers:
             file._size = int(self.request.headers['X-UPLOAD-SIZE'])
         else:
@@ -152,6 +157,9 @@ class GCloudFileManager(object):
 
         if 'UPLOAD-MD5' in self.request.headers:
             file._md5hash = self.request.headers['UPLOAD-MD5']
+
+        if 'UPLOAD-EXTENSION' in self.request.headers:
+            file._extension = self.request.headers['UPLOAD-EXTENSION']
 
         if 'TUS-RESUMABLE' not in self.request.headers:
             raise AttributeError('Its a TUS needs a TUS version')
@@ -383,6 +391,7 @@ class GCloudFile(Persistent):
                 pass
         self._uri = self._upload_file_id
         self._upload_file_id = None
+
         await notify(FinishGCloudUpload(context))
 
     async def deleteUpload(self):

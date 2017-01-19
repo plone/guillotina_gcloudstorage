@@ -41,7 +41,7 @@ try:
 except ImportError:
     from oauth2client import _helpers as util
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('pserver.storage')
 
 MAX_SIZE = 1073741824
 

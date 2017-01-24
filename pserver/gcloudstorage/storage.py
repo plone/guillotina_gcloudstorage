@@ -1,40 +1,44 @@
 # -*- coding: utf-8 -*-
-from google.cloud import storage
-from google.cloud.exceptions import NotFound
-from zope.schema import Object
-from pserver.gcloudstorage.interfaces import IGCloudFile
-from pserver.gcloudstorage.interfaces import IGCloudFileField
-from plone.server.interfaces import IAbsoluteURL
-from oauth2client.service_account import ServiceAccountCredentials
-from zope.interface import implementer
-from zope.component import getUtility
-from persistent import Persistent
-from zope.schema.fieldproperty import FieldProperty
-from googleapiclient import http
-from googleapiclient import errors
-from zope.component import adapter
-from plone.server.interfaces import IResource
-from plone.server.interfaces import IRequest
-from plone.server.interfaces import IFileManager
-from pserver.gcloudstorage.interfaces import IGCloudBlobStore
-from pserver.gcloudstorage.events import InitialGCloudUpload
-from pserver.gcloudstorage.events import FinishGCloudUpload
-from plone.server.json.interfaces import IValueToJson
-from googleapiclient import discovery
-from plone.server.transactions import get_current_request
-from aiohttp.web import StreamResponse
-from plone.server.browser import Response
-from plone.server.events import notify
-from datetime import datetime
-from dateutil.tz import tzlocal
-from datetime import timedelta
-import logging
-import uuid
 import aiohttp
 import asyncio
-import json
 import base64
+import json
+import logging
+import transaction
+import uuid
+
+from aiohttp.web import StreamResponse
+from datetime import datetime
+from datetime import timedelta
+from dateutil.tz import tzlocal
+from google.cloud import storage
+from google.cloud.exceptions import NotFound
+from googleapiclient import discovery
+from googleapiclient import errors
+from googleapiclient import http
 from io import BytesIO
+from oauth2client.service_account import ServiceAccountCredentials
+from persistent import Persistent
+from plone.server.browser import Response
+from plone.server.events import notify
+from plone.server.interfaces import IAbsoluteURL
+from plone.server.interfaces import IFileManager
+from plone.server.interfaces import IRequest
+from plone.server.interfaces import IResource
+from plone.server.json.interfaces import IValueToJson
+from plone.server.transactions import RequestNotFound
+from plone.server.transactions import get_current_request
+from plone.server.transactions import tm
+from pserver.gcloudstorage.events import FinishGCloudUpload
+from pserver.gcloudstorage.events import InitialGCloudUpload
+from pserver.gcloudstorage.interfaces import IGCloudBlobStore
+from pserver.gcloudstorage.interfaces import IGCloudFile
+from pserver.gcloudstorage.interfaces import IGCloudFileField
+from zope.component import adapter
+from zope.component import getUtility
+from zope.interface import implementer
+from zope.schema import Object
+from zope.schema.fieldproperty import FieldProperty
 
 try:
     from oauth2client import util
@@ -88,6 +92,12 @@ class GCloudFileManager(object):
         if file is None:
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
+            # Its a long transaction, savepoint
+            try:
+                trns = tm(self.request).get()
+            except RequestNotFound:
+                trns = transaction.get()
+            trns.savepoint()
         if 'X-UPLOAD-MD5HASH' in self.request.headers:
             file._md5hash = self.request.headers['X-UPLOAD-MD5HASH']
         else:

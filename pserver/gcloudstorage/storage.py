@@ -181,6 +181,8 @@ class GCloudFileManager(object):
         else:
             filename = self.request.headers['UPLOAD-METADATA']
             file.filename = base64.b64decode(filename.split()[1]).decode('utf-8')
+
+        import pdb; pdb.set_trace()
         await file.initUpload(self.context)
         # Location will need to be adapted on aiohttp 1.1.x
         resp = Response(headers=aiohttp.MultiDict({

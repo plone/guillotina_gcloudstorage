@@ -153,6 +153,7 @@ class GCloudFileManager(object):
         await file.finishUpload(self.context)
 
     async def tus_create(self):
+
         file = self.field.get(self.context)
         if file is None:
             file = GCloudFile(contentType=self.request.content_type)
@@ -161,7 +162,6 @@ class GCloudFileManager(object):
             file._current_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
             file._current_upload = 0
-
         if 'UPLOAD-LENGTH' in self.request.headers:
             file._size = int(self.request.headers['UPLOAD-LENGTH'])
         else:
@@ -181,12 +181,12 @@ class GCloudFileManager(object):
         else:
             filename = self.request.headers['UPLOAD-METADATA']
             file.filename = str(base64.b64decode(filename.split()[1]))
-
         await file.initUpload(self.context)
         # Location will need to be adapted on aiohttp 1.1.x
         resp = Response(headers=aiohttp.MultiDict({
             'Location': IAbsoluteURL(self.context, self.request)() + '/@tusupload/' + self.field.__name__,  # noqa
-            'Tus-Resumable': '1.0.0'
+            'Tus-Resumable': '1.0.0',
+            'Access-Control-Expose-Headers': 'Location'
         }), status=201)
         return resp
 
@@ -201,7 +201,6 @@ class GCloudFileManager(object):
             file._current_upload = int(self.request.headers['UPLOAD-OFFSET'])
         else:
             raise AttributeError('No upload-offset header')
-
         try:
             data = await self.request.content.readexactly(to_upload)
         except asyncio.IncompleteReadError as e:
@@ -210,24 +209,38 @@ class GCloudFileManager(object):
         while data:
             old_current_upload = file._current_upload
             resp = await file.appendData(data)
-
             # The amount of bytes that are readed
-            readed_bytes = file._current_upload - old_current_upload + 1
+            if resp.status in [200, 201]:
+                # If we finish the current upload is the size of the file
+                readed_bytes = file._current_upload - old_current_upload
+            else:
+                # When it comes from gcloud the current_upload is one number less
+                readed_bytes = file._current_upload - old_current_upload + 1
 
             # Cut the data so there is only the needed data
             data = data[readed_bytes:]
 
-            bytes_to_read = readed_bytes
+            bytes_to_read = len(data)
+
+            if resp.status in [200, 201]:
+                # If we are finished lets close it
+                await file.finishUpload(self.context)
+                data = None
 
             if bytes_to_read == 0:
+                # We could read all the info
                 break
-            if len(data) < 262144:
+
+            if bytes_to_read < 262144:
+                # There is no enough data to send to gcloud
                 break
-            if resp.status in [200, 201]:
-                file.finishUpload(self.context)
+
             if resp.status in [400]:
+                # Some error
                 break
+
             if resp.status == 308:
+                # We continue resumable
                 count = 0
                 try:
                     data += await self.request.content.readexactly(bytes_to_read)  # noqa
@@ -241,9 +254,10 @@ class GCloudFileManager(object):
         expiration = file._resumable_uri_date + timedelta(days=7)
 
         resp = Response(headers=aiohttp.MultiDict({
-            'Upload-Offset': str(file.actualSize() + 1),
+            'Upload-Offset': str(file.actualSize()),
             'Tus-Resumable': '1.0.0',
-            'Upload-Expires': expiration.isoformat()
+            'Upload-Expires': expiration.isoformat(),
+            'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Expires,Tus-Resumable'
         }))
         return resp
 
@@ -253,7 +267,9 @@ class GCloudFileManager(object):
             raise KeyError('No file on this context')
         resp = Response(headers=aiohttp.MultiDict({
             'Upload-Offset': str(file.actualSize()),
-            'Tus-Resumable': '1.0.0'
+            'Upload-Length': str(file._size),
+            'Tus-Resumable': '1.0.0',
+            'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Length'
         }))
         return resp
 

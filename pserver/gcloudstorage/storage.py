@@ -186,7 +186,7 @@ class GCloudFileManager(object):
         resp = Response(headers=aiohttp.MultiDict({
             'Location': IAbsoluteURL(self.context, self.request)() + '/@tusupload/' + self.field.__name__,  # noqa
             'Tus-Resumable': '1.0.0',
-            'Access-Control-Expose-Headers': 'Location'
+            'Access-Control-Expose-Headers': 'Location,Tus-Resumable'
         }), status=201)
         return resp
 
@@ -269,7 +269,7 @@ class GCloudFileManager(object):
             'Upload-Offset': str(file.actualSize()),
             'Upload-Length': str(file._size),
             'Tus-Resumable': '1.0.0',
-            'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Length'
+            'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Length,Tus-Resumable'
         }))
         return resp
 

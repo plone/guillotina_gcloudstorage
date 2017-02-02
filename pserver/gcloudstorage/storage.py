@@ -37,6 +37,7 @@ from pserver.gcloudstorage.interfaces import IGCloudFileField
 from zope.component import adapter
 from zope.component import getUtility
 from zope.interface import implementer
+from plone.server import configure
 from zope.schema import Object
 from zope.schema.fieldproperty import FieldProperty
 
@@ -59,8 +60,9 @@ class GoogleCloudException(Exception):
     pass
 
 
-@adapter(IGCloudFile)
-@implementer(IValueToJson)
+@configure.adapter(
+    for_=IGCloudFile,
+    provides=IValueToJson)
 def json_converter(value):
     if value is None:
         return value
@@ -74,8 +76,9 @@ def json_converter(value):
     }
 
 
-@adapter(IResource, IRequest, IGCloudFileField)
-@implementer(IFileManager)
+@configure.adapter(
+    for_=(IResource, IRequest, IGCloudFileField),
+    provides=IFileManager)
 class GCloudFileManager(object):
 
     def __init__(self, context, request, field):

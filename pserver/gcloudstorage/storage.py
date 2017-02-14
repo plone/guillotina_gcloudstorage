@@ -269,12 +269,14 @@ class GCloudFileManager(object):
         file = self.field.get(self.context)
         if file is None:
             raise KeyError('No file on this context')
-        resp = Response(headers=aiohttp.MultiDict({
+        head_response = {
             'Upload-Offset': str(file.actualSize()),
-            'Upload-Length': str(file._size),
             'Tus-Resumable': '1.0.0',
             'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Length,Tus-Resumable'
-        }))
+        }
+        if file.size:
+            head_response['Upload-Length'] = str(file._size)
+        resp = Response(headers=aiohttp.MultiDict(head_response))
         return resp
 
     async def tus_options(self):
@@ -295,7 +297,8 @@ class GCloudFileManager(object):
             'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
         }))
         resp.content_type = file.contentType
-        resp.content_length = file._size
+        if file.size:
+            resp.content_length = file.size
         buf = BytesIO()
         downloader = await file.download(buf)
         await resp.prepare(self.request)

@@ -29,7 +29,6 @@ setup(
         'google-api-python-client',
         'google-cloud-storage',
         'gcloud',
-        'ZEO',
         'ujson',
     ],
     tests_require=[

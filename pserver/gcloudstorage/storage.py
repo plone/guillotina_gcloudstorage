@@ -202,9 +202,6 @@ class GCloudFileManager(object):
         file = self.field.get(self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
             to_upload = int(self.request.headers['CONTENT-LENGTH'])
-        elif file._size:
-            # tus-java-client doesn't like to set content-length
-            to_upload = file._size
         else:
             raise AttributeError('No content-length header')
 

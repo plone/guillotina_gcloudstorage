@@ -157,6 +157,10 @@ class GCloudFileManager(object):
 
     async def tus_create(self):
 
+        # This only happens in tus-java-client, redirect this POST to a PATCH
+        if self.request.headers.get('X-HTTP-Method-Override') == 'PATCH':
+            return await self.tus_patch()
+
         file = self.field.get(self.context)
         if file is None:
             file = GCloudFile(contentType=self.request.content_type)
@@ -198,6 +202,9 @@ class GCloudFileManager(object):
         file = self.field.get(self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
             to_upload = int(self.request.headers['CONTENT-LENGTH'])
+        elif file._size:
+            # tus-java-client doesn't like to set content-length
+            to_upload = file._size
         else:
             raise AttributeError('No content-length header')
 

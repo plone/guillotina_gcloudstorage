@@ -1,7 +1,7 @@
 .. contents::
 
-PLONE.SERVER.GCLOUDSTORAGE
+guillotina.GCLOUDSTORAGE
 ==========================
 
-GCloud blob storage for plone.server.
+GCloud blob storage for guillotina.
 

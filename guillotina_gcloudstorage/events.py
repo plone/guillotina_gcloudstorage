@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
-from pserver.gcloudstorage.interfaces import IInitialGCloudUpload
-from pserver.gcloudstorage.interfaces import IFinishGCloudUpload
+from guillotina_gcloudstorage.interfaces import IFinishGCloudUpload
+from guillotina_gcloudstorage.interfaces import IInitialGCloudUpload
 from zope.interface import implementer
 from zope.interface.interfaces import ObjectEvent
 

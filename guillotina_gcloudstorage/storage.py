@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-import aiohttp
-import asyncio
-import base64
-import json
-import logging
-import transaction
-import uuid
-
 from aiohttp.web import StreamResponse
 from datetime import datetime
 from datetime import timedelta
@@ -16,30 +8,35 @@ from google.cloud.exceptions import NotFound
 from googleapiclient import discovery
 from googleapiclient import errors
 from googleapiclient import http
+from guillotina import configure
+from guillotina.browser import Response
+from guillotina.component import getUtility
+from guillotina.db.orm.base import BaseObject
+from guillotina.event import notify
+from guillotina.interfaces import IAbsoluteURL
+from guillotina.interfaces import IFileManager
+from guillotina.interfaces import IRequest
+from guillotina.interfaces import IResource
+from guillotina.interfaces import IValueToJson
+from guillotina.schema import Object
+from guillotina.schema.fieldproperty import FieldProperty
+from guillotina.utils import get_current_request
+from guillotina_gcloudstorage.events import FinishGCloudUpload
+from guillotina_gcloudstorage.events import InitialGCloudUpload
+from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
+from guillotina_gcloudstorage.interfaces import IGCloudFile
+from guillotina_gcloudstorage.interfaces import IGCloudFileField
 from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
-from persistent import Persistent
-from plone.server.browser import Response
-from plone.server.events import notify
-from plone.server.interfaces import IAbsoluteURL
-from plone.server.interfaces import IFileManager
-from plone.server.interfaces import IRequest
-from plone.server.interfaces import IResource
-from plone.server.json.interfaces import IValueToJson
-from plone.server.transactions import RequestNotFound
-from plone.server.transactions import get_current_request
-from plone.server.transactions import tm
-from pserver.gcloudstorage.events import FinishGCloudUpload
-from pserver.gcloudstorage.events import InitialGCloudUpload
-from pserver.gcloudstorage.interfaces import IGCloudBlobStore
-from pserver.gcloudstorage.interfaces import IGCloudFile
-from pserver.gcloudstorage.interfaces import IGCloudFileField
-from zope.component import adapter
-from zope.component import getUtility
 from zope.interface import implementer
-from plone.server import configure
-from zope.schema import Object
-from zope.schema.fieldproperty import FieldProperty
+
+import aiohttp
+import asyncio
+import base64
+import json
+import logging
+import uuid
+
 
 try:
     from oauth2client import util
@@ -96,11 +93,8 @@ class GCloudFileManager(object):
             file = GCloudFile(contentType=self.request.content_type)
             self.field.set(self.context, file)
             # Its a long transaction, savepoint
-            try:
-                trns = tm(self.request).get()
-            except RequestNotFound:
-                trns = transaction.get()
-            trns.savepoint()
+            # trns = get_transaction(self.request)
+            # XXX no savepoint support right now?
         if 'X-UPLOAD-MD5HASH' in self.request.headers:
             file._md5hash = self.request.headers['X-UPLOAD-MD5HASH']
         else:
@@ -119,7 +113,8 @@ class GCloudFileManager(object):
         if 'X-UPLOAD-FILENAME' in self.request.headers:
             file.filename = self.request.headers['X-UPLOAD-FILENAME']
         elif 'X-UPLOAD-FILENAME-B64' in self.request.headers:
-            file.filename = base64.b64decode(self.request.headers['X-UPLOAD-FILENAME-B64']).decode("utf-8")
+            file.filename = base64.b64decode(
+                self.request.headers['X-UPLOAD-FILENAME-B64']).decode("utf-8")
         else:
             file.filename = uuid.uuid4().hex
 
@@ -322,7 +317,7 @@ class GCloudFileManager(object):
 
 
 @implementer(IGCloudFile)
-class GCloudFile(Persistent):
+class GCloudFile(BaseObject):
     """File stored in a GCloud, with a filename."""
 
     filename = FieldProperty(IGCloudFile['filename'])

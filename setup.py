@@ -3,7 +3,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 setup(
-    name='pserver.gcloudstorage',
+    name='guillotina_gcloudstorage',
     version=open('VERSION').read().strip(),
     long_description=(open('README.rst').read() + '\n' +
                       open('CHANGELOG.rst').read()),
@@ -12,7 +12,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    url='https://pypi.python.org/pypi/pserver.gcloudstorage',
+    url='https://pypi.python.org/pypi/guillotina_gcloudstorage',
     license='GPL version 3',
     setup_requires=[
         'pytest-runner',
@@ -20,10 +20,9 @@ setup(
     zip_safe=True,
     include_package_data=True,
     packages=find_packages(exclude=['ez_setup']),
-    namespace_packages=['pserver'],
     install_requires=[
         'setuptools',
-        'plone.server',
+        'guillotina',
         'protobuf',
         'oauth2client',
         'google-api-python-client',
@@ -35,8 +34,8 @@ setup(
         'pytest',
     ],
     entry_points={
-        'plone.server': [
-            'include = pserver.gcloudstorage',
+        'guillotina': [
+            'include = guillotina_gcloudstorage',
         ]
     }
 )

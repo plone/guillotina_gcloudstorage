@@ -1,7 +1,6 @@
 .. contents::
 
-guillotina.GCLOUDSTORAGE
-==========================
+GUILLOTINA_GCLOUDSTORAGE
+========================
 
 GCloud blob storage for guillotina.
-

@@ -14,6 +14,7 @@ setup(
     ],
     author='Ramon Navarro Bosch',
     author_email='ramon@plone.org',
+    keywords='guillotina async cloud storage',
     url='https://pypi.python.org/pypi/guillotina_gcloudstorage',
     license='GPL version 3',
     setup_requires=[

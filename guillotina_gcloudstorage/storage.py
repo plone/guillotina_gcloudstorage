@@ -43,7 +43,7 @@ try:
 except ImportError:
     from oauth2client import _helpers as util
 
-log = logging.getLogger('pserver.storage')
+log = logging.getLogger('guillotina_gcloudstorage')
 
 MAX_SIZE = 1073741824
 
@@ -353,7 +353,7 @@ class GCloudFile(BaseObject):
             except errors.HttpError:
                 pass
 
-        self._upload_file_id = request._site_id + '/' + uuid.uuid4().hex
+        self._upload_file_id = request._container_id + '/' + uuid.uuid4().hex
         init_url = UPLOAD_URL.format(bucket=util.bucket) + '&name=' +\
             self._upload_file_id
         session = aiohttp.ClientSession()
@@ -530,7 +530,7 @@ class GCloudBlobStore(object):
             char_delimiter = '.'
         else:
             char_delimiter = '_'
-        bucket_name = request._site_id.lower() + char_delimiter + self._bucket
+        bucket_name = request._container_id.lower() + char_delimiter + self._bucket
         try:
             bucket = self._client.get_bucket(bucket_name)  # noqa
         except NotFound:

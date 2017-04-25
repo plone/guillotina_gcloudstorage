@@ -186,11 +186,11 @@ class GCloudFileManager(object):
 
         await file.initUpload(self.context)
         # Location will need to be adapted on aiohttp 1.1.x
-        resp = Response(headers=aiohttp.MultiDict({
+        resp = Response(headers={
             'Location': IAbsoluteURL(self.context, self.request)() + '/@tusupload/' + self.field.__name__,  # noqa
             'Tus-Resumable': '1.0.0',
             'Access-Control-Expose-Headers': 'Location,Tus-Resumable'
-        }), status=201)
+        }, status=201)
         return resp
 
     async def tus_patch(self):
@@ -256,12 +256,12 @@ class GCloudFileManager(object):
                     raise AttributeError('MAX retries error')
         expiration = file._resumable_uri_date + timedelta(days=7)
 
-        resp = Response(headers=aiohttp.MultiDict({
+        resp = Response(headers={
             'Upload-Offset': str(file.actualSize()),
             'Tus-Resumable': '1.0.0',
             'Upload-Expires': expiration.isoformat(),
             'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Expires,Tus-Resumable'
-        }))
+        })
         return resp
 
     async def tus_head(self):
@@ -275,16 +275,16 @@ class GCloudFileManager(object):
         }
         if file.size:
             head_response['Upload-Length'] = str(file._size)
-        resp = Response(headers=aiohttp.MultiDict(head_response))
+        resp = Response(headers=head_response)
         return resp
 
     async def tus_options(self):
-        resp = Response(headers=aiohttp.MultiDict({
+        resp = Response(headers={
             'Tus-Resumable': '1.0.0',
             'Tus-Version': '1.0.0',
             'Tus-Max-Size': '1073741824',
             'Tus-Extension': 'creation,expiration'
-        }))
+        })
         return resp
 
     async def download(self):
@@ -292,16 +292,16 @@ class GCloudFileManager(object):
         if file is None:
             raise AttributeError('No field value')
 
-        resp = StreamResponse(headers=aiohttp.MultiDict({
+        resp = StreamResponse(headers={
             'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
-        }))
+        })
         resp.content_type = file.contentType
         if file.size:
             resp.content_length = file.size
         buf = BytesIO()
         downloader = await file.download(buf)
         await resp.prepare(self.request)
-        # response.start(request)
+
         done = False
         while done is False:
             status, done = downloader.next_chunk()

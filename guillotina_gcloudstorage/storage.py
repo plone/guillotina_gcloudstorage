@@ -498,7 +498,7 @@ class GCloudFileField(Object):
 
 class GCloudBlobStore(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings, loop=None):
         self._json_credentials = settings['json_credentials']
         self._project = settings['project'] if 'project' in settings else None
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(

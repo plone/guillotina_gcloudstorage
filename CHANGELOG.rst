@@ -1,4 +1,4 @@
-1.0.2 (unreleased)
+1.0.2 (2017-04-26)
 ------------------
 
 - Need to be able to provide loop param in constructor of utility

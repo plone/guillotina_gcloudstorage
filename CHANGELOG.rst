@@ -1,7 +1,8 @@
 1.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Allow GCloudFile to take all arguments
+  [vangheem]
 
 
 1.0.2 (2017-04-26)

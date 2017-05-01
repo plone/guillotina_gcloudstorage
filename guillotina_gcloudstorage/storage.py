@@ -26,6 +26,7 @@ from guillotina_gcloudstorage.events import InitialGCloudUpload
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
+from guillotina_gcloudstorage.interfaces import IJSONToValue
 from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
 from zope.interface import implementer
@@ -57,20 +58,25 @@ class GoogleCloudException(Exception):
     pass
 
 
-@configure.adapter(
-    for_=IGCloudFile,
-    provides=IValueToJson)
+@configure.adapter(for_=IGCloudFile, provides=IValueToJson)
 def json_converter(value):
     if value is None:
         return value
 
     return {
         'filename': value.filename,
-        'contenttype': value.contentType,
+        'content_type': value.content_type,
         'size': value.size,
         'extension': value.extension,
         'md5': value.md5
     }
+
+
+@configure.adapter(
+    for_=(dict, IGCloudFileField),
+    provides=IJSONToValue)
+def dictfile_converter(value, field):
+    return GCloudFile(**value)
 
 
 @configure.adapter(
@@ -90,7 +96,7 @@ class GCloudFileManager(object):
         """
         file = self.field.get(self.context)
         if file is None:
-            file = GCloudFile(contentType=self.request.content_type)
+            file = GCloudFile(content_type=self.request.content_type)
             self.field.set(self.context, file)
             # Its a long transaction, savepoint
             # trns = get_transaction(self.request)
@@ -158,7 +164,7 @@ class GCloudFileManager(object):
 
         file = self.field.get(self.context)
         if file is None:
-            file = GCloudFile(contentType=self.request.content_type)
+            file = GCloudFile(content_type=self.request.content_type)
             self.field.set(self.context, file)
         if 'CONTENT-LENGTH' in self.request.headers:
             file._current_upload = int(self.request.headers['CONTENT-LENGTH'])
@@ -295,7 +301,7 @@ class GCloudFileManager(object):
         resp = StreamResponse(headers={
             'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
         })
-        resp.content_type = file.contentType
+        resp.content_type = file.content_type
         if file.size:
             resp.content_length = file.size
         buf = BytesIO()
@@ -322,19 +328,21 @@ class GCloudFile(BaseObject):
 
     filename = FieldProperty(IGCloudFile['filename'])
 
-    def __init__(  # noqa
-            self,
-            contentType='application/octet-stream',
-            filename=None):
-        self.contentType = contentType
-        self._current_upload = 0
+    def __init__(self, content_type='application/octet-stream',
+                 filename=None, size=0, md5=None):
+        if not isinstance(content_type, bytes):
+            content_type = content_type.encode('utf8')
+        self.content_type = content_type
         if filename is not None:
             self.filename = filename
             extension_discovery = filename.split('.')
             if len(extension_discovery) > 1:
                 self._extension = extension_discovery[-1]
-        elif self.filename is not None:
+        elif self.filename is None:
             self.filename = uuid.uuid4().hex
+
+        self._size = size
+        self._md5 = md5
 
     async def initUpload(self, context):
         """Init an upload.
@@ -476,9 +484,6 @@ class GCloudFile(BaseObject):
             return self._extension
         else:
             return None
-
-    def getSize(self):  # noqa
-        return self.size
 
 
 @implementer(IGCloudFileField)

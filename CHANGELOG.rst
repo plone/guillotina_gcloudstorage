@@ -1,7 +1,8 @@
 1.0.6 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix bytes serialization issue
+  [vangheem]
 
 
 1.0.5 (2017-05-01)

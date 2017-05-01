@@ -1,4 +1,4 @@
-1.0.6 (unreleased)
+1.0.6 (2017-05-01)
 ------------------
 
 - Fix bytes serialization issue

@@ -14,6 +14,7 @@ from guillotina.component import getUtility
 from guillotina.event import notify
 from guillotina.interfaces import IAbsoluteURL
 from guillotina.interfaces import IFileManager
+from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
 from guillotina.interfaces import IResource
 from guillotina.interfaces import IValueToJson
@@ -25,7 +26,6 @@ from guillotina_gcloudstorage.events import InitialGCloudUpload
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
-from guillotina_gcloudstorage.interfaces import IJSONToValue
 from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
 from zope.interface import implementer

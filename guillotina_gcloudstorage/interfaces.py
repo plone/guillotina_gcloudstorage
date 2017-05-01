@@ -23,7 +23,9 @@ class IGCloudFile(IFile):
     """Marker for a GCloudFile
     """
 
+
 # Events
+
 
 class IInitialGCloudUpload(interfaces.IObjectEvent):
     """An upload has started

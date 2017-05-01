@@ -1,7 +1,8 @@
 1.0.7 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix reference to _md5hash instead of _md5 so serializing works
+  [vangheem]
 
 
 1.0.6 (2017-05-01)

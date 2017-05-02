@@ -1,4 +1,4 @@
-1.0.9 (unreleased)
+1.0.9 (2017-05-02)
 ------------------
 
 - contentType was renamed to content_type

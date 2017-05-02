@@ -1,7 +1,8 @@
 1.0.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Make sure to register the object for writing to the database
+  [vangheem]
 
 
 1.0.7 (2017-05-01)

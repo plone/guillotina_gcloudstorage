@@ -96,6 +96,8 @@ class GCloudFileManager(object):
 
         we need to provide an upload that concats the incoming
         """
+        self.context._p_register()  # writing to object
+
         file = self.field.get(self.context)
         if file is None:
             file = GCloudFile(content_type=self.request.content_type)
@@ -159,6 +161,7 @@ class GCloudFileManager(object):
         await file.finishUpload(self.context)
 
     async def tus_create(self):
+        self.context._p_register()  # writing to object
 
         # This only happens in tus-java-client, redirect this POST to a PATCH
         if self.request.headers.get('X-HTTP-Method-Override') == 'PATCH':
@@ -202,6 +205,8 @@ class GCloudFileManager(object):
         return resp
 
     async def tus_patch(self):
+        self.context._p_register()  # writing to object
+
         file = self.field.get(self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
             to_upload = int(self.request.headers['CONTENT-LENGTH'])

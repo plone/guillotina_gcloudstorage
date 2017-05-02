@@ -1,4 +1,4 @@
-1.0.10 (unreleased)
+1.0.10 (2017-05-02)
 -------------------
 
 - Convert bytes to string for content_type

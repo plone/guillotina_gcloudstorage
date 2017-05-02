@@ -57,17 +57,20 @@ class GoogleCloudException(Exception):
     pass
 
 
+def _to_str(value):
+    if isinstance(value, bytes):
+        value = value.decode('utf-8')
+    return value
+
+
 @configure.adapter(for_=IGCloudFile, provides=IValueToJson)
 def json_converter(value):
     if value is None:
         return value
 
-    ct = value.content_type
-    if isinstance(ct, bytes):
-        ct = ct.decode('utf-8')
     return {
         'filename': value.filename,
-        'content_type': ct,
+        'content_type': _to_str(value.content_type),
         'size': value.size,
         'extension': value.extension,
         'md5': value.md5
@@ -308,7 +311,7 @@ class GCloudFileManager(object):
         resp = StreamResponse(headers={
             'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
         })
-        resp.content_type = file.content_type
+        resp.content_type = _to_str(file.content_type)
         if file.size:
             resp.content_length = file.size
         buf = BytesIO()
@@ -385,7 +388,7 @@ class GCloudFile:
                 init_url,
                 headers={
                     'AUTHORIZATION': 'Bearer %s' % util.access_token,
-                    'X-Upload-Content-Type': self.content_type,
+                    'X-Upload-Content-Type': _to_str(self.content_type),
                     'X-Upload-Content-Length': str(self._size),
                     'Content-Type': 'application/json; charset=UTF-8',
                     'Content-Length': str(call_size)
@@ -411,7 +414,7 @@ class GCloudFile:
                 self._resumable_uri,
                 headers={
                     'Content-Length': str(len(data)),
-                    'Content-Type': self.content_type,
+                    'Content-Type': _to_str(self.content_type),
                     'Content-Range': content_range
                 },
                 data=data) as call:

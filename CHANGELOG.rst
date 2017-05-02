@@ -1,7 +1,8 @@
 1.0.10 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Convert bytes to string for content_type
+  [vangheem]
 
 
 1.0.9 (2017-05-02)

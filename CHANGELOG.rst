@@ -1,4 +1,4 @@
-1.0.8 (unreleased)
+1.0.8 (2017-05-02)
 ------------------
 
 - Make sure to register the object for writing to the database

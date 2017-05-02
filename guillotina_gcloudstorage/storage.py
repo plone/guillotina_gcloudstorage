@@ -385,7 +385,7 @@ class GCloudFile:
                 init_url,
                 headers={
                     'AUTHORIZATION': 'Bearer %s' % util.access_token,
-                    'X-Upload-Content-Type': self.contentType,
+                    'X-Upload-Content-Type': self.content_type,
                     'X-Upload-Content-Length': str(self._size),
                     'Content-Type': 'application/json; charset=UTF-8',
                     'Content-Length': str(call_size)
@@ -411,7 +411,7 @@ class GCloudFile:
                 self._resumable_uri,
                 headers={
                     'Content-Length': str(len(data)),
-                    'Content-Type': self.contentType,
+                    'Content-Type': self.content_type,
                     'Content-Range': content_range
                 },
                 data=data) as call:

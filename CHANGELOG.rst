@@ -1,7 +1,8 @@
 1.0.9 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- contentType was renamed to content_type
+  [vangheem]
 
 
 1.0.8 (2017-05-02)

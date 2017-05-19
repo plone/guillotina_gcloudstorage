@@ -556,7 +556,6 @@ class GCloudBlobStore(object):
         self._bucket = settings['bucket']
         self._access_token = self._credentials.get_access_token()
         self._creation_access_token = datetime.now()
-        self._bucket_name = None
 
     @property
     def access_token(self):
@@ -572,8 +571,6 @@ class GCloudBlobStore(object):
 
     @property
     def bucket(self):
-        if self._bucket_name is not None:
-            return self._bucket_name
         request = get_current_request()
         if '.' in self._bucket:
             char_delimiter = '.'
@@ -585,7 +582,6 @@ class GCloudBlobStore(object):
         except NotFound:
             bucket = self._client.create_bucket(bucket_name)  # noqa
             log.warn('We needed to create bucket ' + bucket_name)
-        self._bucket_name = bucket_name
         return bucket_name
 
     async def initialize(self, app=None):

@@ -1,4 +1,4 @@
-1.0.11 (unreleased)
+1.0.11 (2017-05-19)
 -------------------
 
 - provide method to rename object

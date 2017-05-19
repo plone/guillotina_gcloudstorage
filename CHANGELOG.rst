@@ -1,4 +1,4 @@
-1.0.12 (unreleased)
+1.0.12 (2017-05-19)
 -------------------
 
 - Provide iterate_bucket method

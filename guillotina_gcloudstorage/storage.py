@@ -20,6 +20,7 @@ from guillotina.interfaces import IResource
 from guillotina.interfaces import IValueToJson
 from guillotina.schema import Object
 from guillotina.schema.fieldproperty import FieldProperty
+from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
 from guillotina_gcloudstorage.events import FinishGCloudUpload
 from guillotina_gcloudstorage.events import InitialGCloudUpload
@@ -29,6 +30,7 @@ from guillotina_gcloudstorage.interfaces import IGCloudFileField
 from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
 from zope.interface import implementer
+from urllib.parse import quote_plus
 
 import aiohttp
 import asyncio
@@ -38,17 +40,13 @@ import logging
 import uuid
 
 
-try:
-    from oauth2client import util
-except ImportError:
-    from oauth2client import _helpers as util
-
 log = logging.getLogger('guillotina_gcloudstorage')
 
 MAX_SIZE = 1073741824
 
 SCOPES = ['https://www.googleapis.com/auth/devstorage.read_write']
 UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'  # noqa
+OBJECT_BASE_URL = 'https://www.googleapis.com/storage/v1/b'
 CHUNK_SIZE = 524288
 MAX_RETRIES = 5
 
@@ -354,6 +352,35 @@ class GCloudFile:
         self._size = size
         self._md5 = md5
 
+    def generate_key(self, request, context):
+        return '{}{}/{}::{}'.format(
+            request._container_id,
+            get_content_path(context),
+            context._p_oid,
+            uuid.uuid4().hex)
+
+    async def rename_cloud_file(self, new_uri):
+        if self.uri is None:
+            Exception('To rename a uri must be set on the object')
+        util = getUtility(IGCloudBlobStore)
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o/{}/copyTo/b/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                util.bucket,
+                quote_plus(self.uri),
+                util.bucket,
+                quote_plus(new_uri)
+            )
+            resp = await session.post(url, headers={
+                'AUTHORIZATION': 'Bearer %s' % util.access_token,
+                'Content-Type': 'application/json'
+            })
+            data = await resp.json()
+            assert data['name'] == new_uri
+
+            await self.deleteUpload(self.uri)
+            self._uri = new_uri
+
     async def initUpload(self, context):
         """Init an upload.
 
@@ -363,15 +390,11 @@ class GCloudFile:
         """
         util = getUtility(IGCloudBlobStore)
         request = get_current_request()
-        if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:  # noqa
-            req = util._service.objects().delete(
-                bucket=util.bucket, object=self._upload_file_id)
-            try:
-                req.execute()
-            except errors.HttpError:
-                pass
+        if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
+            await self.deleteUpload(self._upload_file_id)
 
-        self._upload_file_id = request._container_id + '/' + uuid.uuid4().hex
+        self._upload_file_id = self.generate_key(request, context)
+
         init_url = UPLOAD_URL.format(bucket=util.bucket) + '&name=' +\
             self._upload_file_id
         session = aiohttp.ClientSession()
@@ -431,27 +454,31 @@ class GCloudFile:
         return self._current_upload
 
     async def finishUpload(self, context):
-        util = getUtility(IGCloudBlobStore)
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
-        if hasattr(self, '_uri') and self._uri is not None:
-            req = util._service.objects().delete(
-                bucket=util.bucket, object=self._uri)
-            try:
-                resp = req.execute()  # noqa
-            except errors.HttpError:
-                pass
+        if self.uri is not None:
+            await self.deleteUpload()
         self._uri = self._upload_file_id
         self._upload_file_id = None
 
         await notify(FinishGCloudUpload(context))
 
-    async def deleteUpload(self):
-        if hasattr(self, '_uri') and self._uri is not None:
-            req = util._service.objects().delete(
-                bucket=util.bucket, object=self._uri)
-            resp = req.execute()
-            return resp
+    async def deleteUpload(self, uri=None):
+        util = getUtility(IGCloudBlobStore)
+        if uri is None:
+            uri = self.uri
+        if uri is not None:
+            async with aiohttp.ClientSession() as session:
+                url = '{}/{}/o/{}'.format(
+                    OBJECT_BASE_URL,
+                    util.bucket,
+                    quote_plus(uri))
+                resp = await session.delete(url, headers={
+                    'AUTHORIZATION': 'Bearer %s' % util.access_token
+                })
+                data = await resp.json()
+                if resp.status not in (200, 204, 404):
+                    raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
 
@@ -473,6 +500,11 @@ class GCloudFile:
         raise NotImplemented('Only specific download permitted')
 
     data = property(_get_data, _set_data)
+
+    @property
+    def uri(self):
+        if hasattr(self, '_uri'):
+            return self._uri
 
     @property
     def size(self):
@@ -525,6 +557,7 @@ class GCloudBlobStore(object):
         self._bucket = settings['bucket']
         self._access_token = self._credentials.get_access_token()
         self._creation_access_token = datetime.now()
+        self._bucket_name = None
 
     @property
     def access_token(self):
@@ -540,6 +573,8 @@ class GCloudBlobStore(object):
 
     @property
     def bucket(self):
+        if self._bucket_name is not None:
+            return self._bucket_name
         request = get_current_request()
         if '.' in self._bucket:
             char_delimiter = '.'
@@ -551,6 +586,7 @@ class GCloudBlobStore(object):
         except NotFound:
             bucket = self._client.create_bucket(bucket_name)  # noqa
             log.warn('We needed to create bucket ' + bucket_name)
+        self._bucket_name = bucket_name
         return bucket_name
 
     async def initialize(self, app=None):

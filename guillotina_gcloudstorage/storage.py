@@ -591,3 +591,34 @@ class GCloudBlobStore(object):
     async def initialize(self, app=None):
         # No asyncio loop to run
         self.app = app
+
+    async def iterate_bucket(self):
+        req = get_current_request()
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o'.format(
+                OBJECT_BASE_URL,
+                self.bucket)
+            resp = await session.get(url, headers={
+                'AUTHORIZATION': 'Bearer %s' % self.access_token
+            }, params={
+                'prefix': req._container_id + '/'
+            })
+            data = await resp.json()
+            for item in data['items']:
+                yield item
+
+            page_token = data.get('nextPageToken')
+            while page_token is not None:
+                resp = await session.get(url, headers={
+                    'AUTHORIZATION': 'Bearer %s' % self.access_token
+                }, params={
+                    'prefix': req._container_id,
+                    'pageToken': page_token
+                })
+                data = await resp.json()
+                items = data.get('items', [])
+                if len(items) == 0:
+                    break
+                for item in items:
+                    yield item
+                page_token = data.get('nextPageToken')

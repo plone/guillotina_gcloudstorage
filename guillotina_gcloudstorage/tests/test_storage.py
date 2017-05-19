@@ -164,3 +164,33 @@ async def test_rename(dummy_request):
         prefix='test-container', bucket=util.bucket).execute()
     assert len(list_resp['items']) == 1
     assert list_resp['items'][0]['name'] == 'test-container/foobar'
+
+
+async def test_iterate_storage(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    _cleanup()
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(_test_gif),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+
+    for _ in range(20):
+        request._payload = FakeContentReader()
+        ob = create_content()
+        ob.file = None
+        mng = GCloudFileManager(ob, request, IContent['file'])
+        await mng.upload()
+
+    util = getUtility(IGCloudBlobStore)
+    count = 0
+    async for item in util.iterate_bucket():
+        count += 1
+    assert count == 20
+
+    _cleanup()

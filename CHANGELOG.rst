@@ -1,7 +1,8 @@
 1.0.12 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Provide iterate_bucket method
+  [vangheem]
 
 
 1.0.11 (2017-05-19)

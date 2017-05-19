@@ -1,7 +1,14 @@
 1.0.11 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- provide method to rename object
+  [vangheem]
+
+- Use keys that use the object's oid
+  [vangheem]
+
+- Make delete async
+  [vangheem]
 
 
 1.0.10 (2017-05-02)

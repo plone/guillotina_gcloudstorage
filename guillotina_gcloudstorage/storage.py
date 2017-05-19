@@ -6,7 +6,6 @@ from dateutil.tz import tzlocal
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
 from googleapiclient import discovery
-from googleapiclient import errors
 from googleapiclient import http
 from guillotina import configure
 from guillotina.browser import Response

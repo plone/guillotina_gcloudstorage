@@ -374,6 +374,8 @@ class GCloudFile:
                 'AUTHORIZATION': 'Bearer %s' % util.access_token,
                 'Content-Type': 'application/json'
             })
+            if resp.status == 404:
+                log.error(f'Could not rename file: {self.uri} to {new_uri}')
             data = await resp.json()
             assert data['name'] == new_uri
 

@@ -6,7 +6,6 @@ from dateutil.tz import tzlocal
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
 from googleapiclient import discovery
-from googleapiclient import http
 from guillotina import configure
 from guillotina.browser import Response
 from guillotina.component import getUtility
@@ -26,7 +25,6 @@ from guillotina_gcloudstorage.events import InitialGCloudUpload
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
-from io import BytesIO
 from oauth2client.service_account import ServiceAccountCredentials
 from zope.interface import implementer
 from urllib.parse import quote_plus
@@ -305,28 +303,40 @@ class GCloudFileManager(object):
         if file is None:
             raise AttributeError('No field value')
 
-        resp = StreamResponse(headers={
+        download_resp = StreamResponse(headers={
             'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
         })
-        resp.content_type = _to_str(file.content_type)
+        download_resp.content_type = _to_str(file.content_type)
         if file.size:
-            resp.content_length = file.size
-        buf = BytesIO()
-        downloader = await file.download(buf)
-        await resp.prepare(self.request)
+            download_resp.content_length = file.size
 
-        done = False
-        while done is False:
-            status, done = downloader.next_chunk()
-            print("Download {}%.".format(int(status.progress() * 100)))
-            buf.seek(0)
-            data = buf.read()
-            resp.write(data)
-            await resp.drain()
-            buf.seek(0)
-            buf.truncate()
+        util = getUtility(IGCloudBlobStore)
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                util.bucket,
+                quote_plus(file.uri)
+            )
+            api_resp = await session.get(url, headers={
+                'AUTHORIZATION': 'Bearer %s' % util.access_token
+            }, params={
+                'alt': 'media'
+            })
+            await download_resp.prepare(self.request)
 
-        return resp
+            count = 0
+            file_size = file.size or 0
+            while True:
+                chunk = await api_resp.content.read(1024 * 1024)
+                if len(chunk) > 0:
+                    count += len(chunk)
+                    log.info("Download {}%.".format(int((count / file_size) * 100)))
+                    download_resp.write(chunk)
+                    await download_resp.drain()
+                else:
+                    break
+
+        return download_resp
 
 
 @implementer(IGCloudFile)
@@ -482,17 +492,6 @@ class GCloudFile:
                     raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
-
-    async def download(self, buf):
-        util = getUtility(IGCloudBlobStore)
-        if not hasattr(self, '_uri'):
-            url = self._upload_file_id
-        else:
-            url = self._uri
-        req = util._service.objects().get_media(
-            bucket=util.bucket, object=url)
-        downloader = http.MediaIoBaseDownload(buf, req, chunksize=CHUNK_SIZE)
-        return downloader
 
     def _set_data(self, data):
         raise NotImplemented('Only specific upload permitted')

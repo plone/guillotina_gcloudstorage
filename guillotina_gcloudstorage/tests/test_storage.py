@@ -2,8 +2,10 @@ from guillotina.component import getUtility
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
+from guillotina_gcloudstorage.storage import CHUNK_SIZE
+from guillotina_gcloudstorage.storage import GCloudFile
 from guillotina_gcloudstorage.storage import GCloudFileField
-from guillotina_gcloudstorage.storage import GCloudFileManager, GCloudFile
+from guillotina_gcloudstorage.storage import GCloudFileManager
 from hashlib import md5
 from zope.interface import Interface
 
@@ -14,13 +16,18 @@ _test_gif = base64.b64decode('R0lGODlhPQBEAPeoAJosM//AwO/AwHVYZ/z595kzAP/s7P+goO
 
 
 class FakeContentReader:
-    _read = False
+
+    def __init__(self, file_data=_test_gif):
+        self._file_data = file_data
+        self._pointer = 0
 
     async def readexactly(self, size):
-        if self._read:
-            return b''
-        self._read = True
-        return _test_gif
+        data = self._file_data[self._pointer:self._pointer + size]
+        self._pointer += size
+        return data
+
+    def seek(self, pos):
+        self._pointer = pos
 
 
 class IContent(Interface):
@@ -189,8 +196,39 @@ async def test_iterate_storage(dummy_request):
 
     util = getUtility(IGCloudBlobStore)
     count = 0
-    async for item in util.iterate_bucket():
+    async for item in util.iterate_bucket():  # noqa
         count += 1
     assert count == 20
 
     _cleanup()
+
+
+async def test_download(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    _cleanup()
+
+    file_data = b''
+    # we want to test multiple chunks here...
+    while len(file_data) < CHUNK_SIZE:
+        file_data += _test_gif
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(file_data),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+    request._payload = FakeContentReader(file_data)
+
+    ob = create_content()
+    ob.file = None
+    mng = GCloudFileManager(ob, request, IContent['file'])
+    await mng.upload()
+    assert ob.file._upload_file_id is None
+    assert ob.file.uri is not None
+
+    resp = await mng.download()
+    assert resp.content_length == len(file_data)

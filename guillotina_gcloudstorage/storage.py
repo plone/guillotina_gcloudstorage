@@ -3,14 +3,12 @@ from aiohttp.web import StreamResponse
 from datetime import datetime
 from datetime import timedelta
 from dateutil.tz import tzlocal
-from google.cloud import storage
-from google.cloud.exceptions import NotFound
-from googleapiclient import discovery
 from guillotina import configure
 from guillotina.browser import Response
 from guillotina.component import getUtility
 from guillotina.event import notify
 from guillotina.interfaces import IAbsoluteURL
+from guillotina.interfaces import IApplication
 from guillotina.interfaces import IFileManager
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
@@ -26,12 +24,14 @@ from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
 from oauth2client.service_account import ServiceAccountCredentials
-from zope.interface import implementer
 from urllib.parse import quote_plus
+from zope.interface import implementer
 
 import aiohttp
 import asyncio
 import base64
+import google.cloud.exceptions
+import google.cloud.storage
 import json
 import logging
 import uuid
@@ -314,11 +314,11 @@ class GCloudFileManager(object):
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o/{}'.format(
                 OBJECT_BASE_URL,
-                util.bucket,
+                await util.get_bucket_name(),
                 quote_plus(file.uri)
             )
             api_resp = await session.get(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % util.access_token
+                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
             }, params={
                 'alt': 'media'
             })
@@ -373,15 +373,16 @@ class GCloudFile:
             Exception('To rename a uri must be set on the object')
         util = getUtility(IGCloudBlobStore)
         async with aiohttp.ClientSession() as session:
+            bucket_name = await util.get_bucket_name()
             url = '{}/{}/o/{}/copyTo/b/{}/o/{}'.format(
                 OBJECT_BASE_URL,
-                util.bucket,
+                bucket_name,
                 quote_plus(self.uri),
-                util.bucket,
+                bucket_name,
                 quote_plus(new_uri)
             )
             resp = await session.post(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % util.access_token,
+                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
                 'Content-Type': 'application/json'
             })
             if resp.status == 404:
@@ -406,7 +407,7 @@ class GCloudFile:
 
         self._upload_file_id = self.generate_key(request, context)
 
-        init_url = UPLOAD_URL.format(bucket=util.bucket) + '&name=' +\
+        init_url = UPLOAD_URL.format(bucket=await util.get_bucket_name()) + '&name=' +\
             self._upload_file_id
         session = aiohttp.ClientSession()
 
@@ -421,7 +422,7 @@ class GCloudFile:
         async with session.post(
                 init_url,
                 headers={
-                    'AUTHORIZATION': 'Bearer %s' % util.access_token,
+                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
                     'X-Upload-Content-Type': _to_str(self.content_type),
                     'X-Upload-Content-Length': str(self._size),
                     'Content-Type': 'application/json; charset=UTF-8',
@@ -482,10 +483,10 @@ class GCloudFile:
             async with aiohttp.ClientSession() as session:
                 url = '{}/{}/o/{}'.format(
                     OBJECT_BASE_URL,
-                    util.bucket,
+                    await util.get_bucket_name(),
                     quote_plus(uri))
                 resp = await session.delete(url, headers={
-                    'AUTHORIZATION': 'Bearer %s' % util.access_token
+                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
                 })
                 data = await resp.json()
                 if resp.status not in (200, 204, 404):
@@ -546,43 +547,50 @@ class GCloudFileField(Object):
 class GCloudBlobStore(object):
 
     def __init__(self, settings, loop=None):
+        self._loop = loop
         self._json_credentials = settings['json_credentials']
         self._project = settings['project'] if 'project' in settings else None
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
             self._json_credentials, SCOPES)
-        self._service = discovery.build(
-            'storage', 'v1', credentials=self._credentials)
-        self._client = storage.Client(
+        self._bucket_name = settings['bucket']
+        self._cached_buckets = []
+        self._creation_access_token = datetime.now()
+
+    def _get_access_token(self):
+        access_token = self._credentials.get_access_token()
+        self._creation_access_token = datetime.now()
+        return access_token.access_token
+
+    async def get_access_token(self):
+        root = getUtility(IApplication, name='root')
+        return await self._loop.run_in_executor(root.executor, self._get_access_token)
+
+    def _get_or_create_bucket(self, bucket_name):
+        client = google.cloud.storage.Client(
             project=self._project, credentials=self._credentials)
-        self._bucket = settings['bucket']
-        self._access_token = self._credentials.get_access_token()
-        self._creation_access_token = datetime.now()
+        try:
+            bucket = client.get_bucket(bucket_name)  # noqa
+        except google.cloud.exceptions.NotFound:
+            bucket = client.create_bucket(bucket_name)
+            log.warn('We needed to create bucket ' + bucket_name)
+        return bucket
 
-    @property
-    def access_token(self):
-        # expires = self._creation_access_token + timedelta(seconds=self._access_token.expires_in)  # noqa
-        # expires_margin = datetime.now() - timedelta(seconds=60)
-
-        # if expires_margin < expires:
-        #     self._access_token = self._credentials.get_access_token()
-        #     self._creation_access_token = datetime.now()
-        self._access_token = self._credentials.get_access_token()
-        self._creation_access_token = datetime.now()
-        return self._access_token.access_token
-
-    @property
-    def bucket(self):
+    async def get_bucket_name(self):
         request = get_current_request()
-        if '.' in self._bucket:
+        if '.' in self._bucket_name:
             char_delimiter = '.'
         else:
             char_delimiter = '_'
-        bucket_name = request._container_id.lower() + char_delimiter + self._bucket
-        try:
-            bucket = self._client.get_bucket(bucket_name)  # noqa
-        except NotFound:
-            bucket = self._client.create_bucket(bucket_name)  # noqa
-            log.warn('We needed to create bucket ' + bucket_name)
+        bucket_name = request._container_id.lower() + char_delimiter + self._bucket_name
+        # we don't need to check every single time...
+        if bucket_name in self._cached_buckets:
+            return bucket_name
+
+        root = getUtility(IApplication, name='root')
+        await self._loop.run_in_executor(
+            root.executor, self._get_or_create_bucket, bucket_name)
+
+        self._cached_buckets.append(bucket_name)
         return bucket_name
 
     async def initialize(self, app=None):
@@ -594,20 +602,23 @@ class GCloudBlobStore(object):
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o'.format(
                 OBJECT_BASE_URL,
-                self.bucket)
+                await self.get_bucket_name())
             resp = await session.get(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % self.access_token
+                'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
             }, params={
                 'prefix': req._container_id + '/'
             })
+            assert resp.status == 200
             data = await resp.json()
+            if 'items' not in data:
+                return
             for item in data['items']:
                 yield item
 
             page_token = data.get('nextPageToken')
             while page_token is not None:
                 resp = await session.get(url, headers={
-                    'AUTHORIZATION': 'Bearer %s' % self.access_token
+                    'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
                 }, params={
                     'prefix': req._container_id,
                     'pageToken': page_token

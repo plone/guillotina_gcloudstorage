@@ -95,7 +95,6 @@ async def test_store_file_in_cloud(dummy_request):
     assert ob.file._size == len(_test_gif)
     assert ob.file.md5 is not None
 
-    util = getUtility(IGCloudBlobStore)
     assert(len(await get_all_objects()) == 1)
     await ob.file.deleteUpload()
     assert len(await get_all_objects()) == 0
@@ -106,7 +105,6 @@ async def test_store_file_deletes_already_started(dummy_request):
     login(request)
     request._container_id = 'test-container'
     await _cleanup()
-    util = getUtility(IGCloudBlobStore)
 
     request.headers.update({
         'Content-Type': 'image/gif',
@@ -161,7 +159,6 @@ async def test_rename(dummy_request):
     login(request)
     request._container_id = 'test-container'
     await _cleanup()
-    util = getUtility(IGCloudBlobStore)
 
     request.headers.update({
         'Content-Type': 'image/gif',

@@ -1,5 +1,5 @@
-2.0.0 (unreleased)
-------------------
+1.0.13 (2017-06-12)
+-------------------
 
 - Remove GCloudBlobStore._service property
   [vangheem]

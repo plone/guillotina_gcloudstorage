@@ -204,7 +204,6 @@ class GCloudFileManager(object):
 
     async def tus_patch(self):
         self.context._p_register()  # writing to object
-
         file = self.field.get(self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
             to_upload = int(self.request.headers['CONTENT-LENGTH'])
@@ -454,6 +453,8 @@ class GCloudFile:
                 },
                 data=data) as call:
             text = await call.text()  # noqa
+            if call.status not in [200, 201, 308]:
+                log.error(text)
             # assert call.status in [200, 201, 308]
             if call.status == 308:
                 self._current_upload = int(call.headers['Range'].split('-')[1])

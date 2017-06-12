@@ -1,7 +1,20 @@
-1.0.13 (unreleased)
--------------------
+2.0.0 (unreleased)
+------------------
 
-- Nothing changed yet.
+- Remove GCloudBlobStore._service property
+  [vangheem]
+
+- Change GCloudBlobStore._bucket to GCloudBlobStore._bucket_name
+  [vangheem]
+
+- Remove GCloudBlobStore._client property
+  [vangheem]
+
+- Rename GCloudBlobStore.bucket property to coroutine:GCloudBlobStore.get_bucket_name()
+  [vangheem]
+
+- Make everything async and use executor if necessary so we don't block
+  [vangheem]
 
 
 1.0.12 (2017-05-19)

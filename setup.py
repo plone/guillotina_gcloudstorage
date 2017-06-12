@@ -28,7 +28,6 @@ setup(
         'guillotina',
         'protobuf',
         'oauth2client',
-        'google-api-python-client',
         'google-cloud-storage',
         'gcloud',
         'ujson',

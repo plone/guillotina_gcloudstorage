@@ -2,11 +2,16 @@ from guillotina.component import getUtility
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
+from guillotina_gcloudstorage.storage import CHUNK_SIZE
+from guillotina_gcloudstorage.storage import GCloudFile
 from guillotina_gcloudstorage.storage import GCloudFileField
-from guillotina_gcloudstorage.storage import GCloudFileManager, GCloudFile
+from guillotina_gcloudstorage.storage import GCloudFileManager
+from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
 from hashlib import md5
+from urllib.parse import quote_plus
 from zope.interface import Interface
 
+import aiohttp
 import base64
 
 
@@ -14,40 +19,60 @@ _test_gif = base64.b64decode('R0lGODlhPQBEAPeoAJosM//AwO/AwHVYZ/z595kzAP/s7P+goO
 
 
 class FakeContentReader:
-    _read = False
+
+    def __init__(self, file_data=_test_gif):
+        self._file_data = file_data
+        self._pointer = 0
 
     async def readexactly(self, size):
-        if self._read:
-            return b''
-        self._read = True
-        return _test_gif
+        data = self._file_data[self._pointer:self._pointer + size]
+        self._pointer += size
+        return data
+
+    def seek(self, pos):
+        self._pointer = pos
 
 
 class IContent(Interface):
     file = GCloudFileField()
 
 
-def test_get_storage_object(dummy_request):
+async def test_get_storage_object(dummy_request):
     request = dummy_request  # noqa
     request._container_id = 'test-container'
     util = getUtility(IGCloudBlobStore)
-    assert util.access_token is not None
-    assert util.bucket is not None
+    assert await util.get_access_token() is not None
+    assert await util.get_bucket_name() is not None
 
 
-def _cleanup():
+async def _cleanup():
     util = getUtility(IGCloudBlobStore)
-    req = util._service.objects().list(prefix='test-container', bucket=util.bucket)
-    resp = req.execute()
-    for item in resp.get('items', []):
-        util._service.objects().delete(bucket=util.bucket, object=item['name']).execute()
+    async for item in util.iterate_bucket():
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                await util.get_bucket_name(),
+                quote_plus(item['name']))
+            resp = await session.delete(url, headers={
+                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+            })
+            await resp.json()
+            assert resp.status in (200, 204, 404)
+
+
+async def get_all_objects():
+    util = getUtility(IGCloudBlobStore)
+    items = []
+    async for item in util.iterate_bucket():
+        items.append(item)
+    return items
 
 
 async def test_store_file_in_cloud(dummy_request):
     request = dummy_request  # noqa
     login(request)
     request._container_id = 'test-container'
-    _cleanup()
+    await _cleanup()
 
     request.headers.update({
         'Content-Type': 'image/gif',
@@ -70,20 +95,16 @@ async def test_store_file_in_cloud(dummy_request):
     assert ob.file._size == len(_test_gif)
     assert ob.file.md5 is not None
 
-    util = getUtility(IGCloudBlobStore)
-    assert(len(util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute()['items']) == 1)
+    assert(len(await get_all_objects()) == 1)
     await ob.file.deleteUpload()
-    assert('items' not in util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute())
+    assert len(await get_all_objects()) == 0
 
 
 async def test_store_file_deletes_already_started(dummy_request):
     request = dummy_request  # noqa
     login(request)
     request._container_id = 'test-container'
-    _cleanup()
-    util = getUtility(IGCloudBlobStore)
+    await _cleanup()
 
     request.headers.update({
         'Content-Type': 'image/gif',
@@ -101,10 +122,9 @@ async def test_store_file_deletes_already_started(dummy_request):
     assert ob.file._upload_file_id is None
     assert ob.file.uri is not None
 
-    list_resp = util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute()
-    assert len(list_resp['items']) == 1
-    assert list_resp['items'][0]['name'] == ob.file.uri
+    items = await get_all_objects()
+    assert len(items) == 1
+    assert items[0]['name'] == ob.file.uri
 
     original = ob.file._uri
     ob.file._upload_file_id = ob.file._uri  # like it is in middle of upload
@@ -117,11 +137,9 @@ async def test_store_file_deletes_already_started(dummy_request):
     assert ob.file._upload_file_id is None
     assert ob.file.uri != original
 
-    assert(len(util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute()['items']) == 1)
+    assert len(await get_all_objects()) == 1
     await ob.file.deleteUpload()
-    assert('ites' not in util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute())
+    assert len(await get_all_objects()) == 0
 
 
 def test_gen_key(dummy_request):
@@ -140,8 +158,7 @@ async def test_rename(dummy_request):
     request = dummy_request  # noqa
     login(request)
     request._container_id = 'test-container'
-    _cleanup()
-    util = getUtility(IGCloudBlobStore)
+    await _cleanup()
 
     request.headers.update({
         'Content-Type': 'image/gif',
@@ -160,17 +177,16 @@ async def test_rename(dummy_request):
     await ob.file.rename_cloud_file('test-container/foobar')
     assert ob.file.uri == 'test-container/foobar'
 
-    list_resp = util._service.objects().list(
-        prefix='test-container', bucket=util.bucket).execute()
-    assert len(list_resp['items']) == 1
-    assert list_resp['items'][0]['name'] == 'test-container/foobar'
+    items = await get_all_objects()
+    assert len(items) == 1
+    assert items[0]['name'] == 'test-container/foobar'
 
 
 async def test_iterate_storage(dummy_request):
     request = dummy_request  # noqa
     login(request)
     request._container_id = 'test-container'
-    _cleanup()
+    await _cleanup()
 
     request.headers.update({
         'Content-Type': 'image/gif',
@@ -189,8 +205,39 @@ async def test_iterate_storage(dummy_request):
 
     util = getUtility(IGCloudBlobStore)
     count = 0
-    async for item in util.iterate_bucket():
+    async for item in util.iterate_bucket():  # noqa
         count += 1
     assert count == 20
 
-    _cleanup()
+    await _cleanup()
+
+
+async def test_download(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    await _cleanup()
+
+    file_data = b''
+    # we want to test multiple chunks here...
+    while len(file_data) < CHUNK_SIZE:
+        file_data += _test_gif
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(file_data),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+    request._payload = FakeContentReader(file_data)
+
+    ob = create_content()
+    ob.file = None
+    mng = GCloudFileManager(ob, request, IContent['file'])
+    await mng.upload()
+    assert ob.file._upload_file_id is None
+    assert ob.file.uri is not None
+
+    resp = await mng.download()
+    assert resp.content_length == len(file_data)

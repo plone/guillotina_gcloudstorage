@@ -1,4 +1,4 @@
-1.0.14 (unreleased)
+1.0.14 (2017-06-14)
 -------------------
 
 - Be able to customize content disposition header of file download

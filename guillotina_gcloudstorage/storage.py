@@ -297,13 +297,13 @@ class GCloudFileManager(object):
         })
         return resp
 
-    async def download(self):
+    async def download(self, disposition='attachment'):
         file = self.field.get(self.context)
         if file is None:
             raise AttributeError('No field value')
 
         download_resp = StreamResponse(headers={
-            'CONTENT-DISPOSITION': 'attachment; filename="%s"' % file.filename
+            'CONTENT-DISPOSITION': f'{disposition}; filename="%s"' % file.filename
         })
         download_resp.content_type = _to_str(file.content_type)
         if file.size:

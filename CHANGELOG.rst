@@ -1,7 +1,8 @@
 1.0.15 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Guess content type if none provided when downloading file
+  [vangheem]
 
 
 1.0.14 (2017-06-14)

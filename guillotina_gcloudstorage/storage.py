@@ -34,6 +34,7 @@ import google.cloud.exceptions
 import google.cloud.storage
 import json
 import logging
+import mimetypes
 import uuid
 
 
@@ -305,7 +306,7 @@ class GCloudFileManager(object):
         download_resp = StreamResponse(headers={
             'CONTENT-DISPOSITION': f'{disposition}; filename="%s"' % file.filename
         })
-        download_resp.content_type = _to_str(file.content_type)
+        download_resp.content_type = file.guess_content_type()
         if file.size:
             download_resp.content_length = file.size
 
@@ -359,6 +360,15 @@ class GCloudFile:
 
         self._size = size
         self._md5 = md5
+
+    def guess_content_type(self):
+        ct = _to_str(self.content_type)
+        if ct == 'application/octet-stream':
+            # try guessing content_type
+            ct, _ = mimetypes.guess_type(self.filename)
+            if ct is None:
+                ct = 'application/octet-stream'
+        return ct
 
     def generate_key(self, request, context):
         return '{}{}/{}::{}'.format(

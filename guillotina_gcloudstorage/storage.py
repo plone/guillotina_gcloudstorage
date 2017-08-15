@@ -338,6 +338,31 @@ class GCloudFileManager(object):
 
         return download_resp
 
+    async def iter_data(self):
+        file = self.field.get(self.context)
+        if file is None:
+            raise AttributeError('No field value')
+
+        util = getUtility(IGCloudBlobStore)
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                await util.get_bucket_name(),
+                quote_plus(file.uri)
+            )
+            api_resp = await session.get(url, headers={
+                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+            }, params={
+                'alt': 'media'
+            })
+
+            while True:
+                chunk = await api_resp.content.read(1024 * 1024)
+                if len(chunk) > 0:
+                    yield chunk
+                else:
+                    break
+
 
 @implementer(IGCloudFile)
 class GCloudFile:

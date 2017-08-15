@@ -1,4 +1,4 @@
-1.0.16 (unreleased)
+1.0.16 (2017-08-15)
 -------------------
 
 - Provide iter_data method

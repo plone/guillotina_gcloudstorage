@@ -363,6 +363,27 @@ class GCloudFileManager(object):
                 else:
                     break
 
+    async def save_file(self, generator, content_type=None, size=None,
+                        filename=None):
+        self.context._p_register()  # writing to object
+
+        file = self.field.get(self.context)
+        if file is None:
+            file = GCloudFile(content_type=content_type)
+            self.field.set(self.context, file)
+
+        file._size = size
+        if filename is None:
+            filename = uuid.uuid4().hex
+        file.filename = filename
+
+        await file.initUpload(self.context)
+
+        async for data in generator():
+            await file.appendData(data)
+
+        await file.finishUpload(self.context)
+
 
 @implementer(IGCloudFile)
 class GCloudFile:

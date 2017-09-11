@@ -1,7 +1,8 @@
 1.0.18 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Be able to override disposition of download
+  [vangheem]
 
 
 1.0.17 (2017-09-01)

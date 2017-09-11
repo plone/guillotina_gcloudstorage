@@ -1,4 +1,4 @@
-1.0.18 (unreleased)
+1.0.18 (2017-09-11)
 -------------------
 
 - Be able to override disposition of download

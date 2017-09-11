@@ -3,6 +3,7 @@ from aiohttp.web import StreamResponse
 from datetime import datetime
 from datetime import timedelta
 from dateutil.tz import tzlocal
+from guillotina import app_settings
 from guillotina import configure
 from guillotina.browser import Response
 from guillotina.component import getUtility
@@ -305,9 +306,13 @@ class GCloudFileManager(object):
         if file is None:
             raise AttributeError('No field value')
 
-        download_resp = StreamResponse(headers={
+        cors_renderer = app_settings['cors_renderer'](self.request)
+        headers = await cors_renderer.get_headers()
+        headers.update({
             'CONTENT-DISPOSITION': f'{disposition}; filename="%s"' % file.filename
         })
+
+        download_resp = StreamResponse(headers=headers)
         download_resp.content_type = file.guess_content_type()
         if file.size:
             download_resp.content_length = file.size

@@ -1,7 +1,11 @@
 1.0.20 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Do not timeout when downloading for gcloud
+  [vangheem]
+
+- Make sure to use async with syntax with aiohttp requests
+  [vangheem]
 
 
 1.0.19 (2017-09-11)

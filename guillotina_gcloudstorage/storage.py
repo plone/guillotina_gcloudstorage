@@ -324,24 +324,25 @@ class GCloudFileManager(object):
                 await util.get_bucket_name(),
                 quote_plus(file.uri)
             )
-            api_resp = await session.get(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
-            }, params={
-                'alt': 'media'
-            })
-            await download_resp.prepare(self.request)
+            async with session.get(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                    }, params={
+                        'alt': 'media'
+                    }, timeout=-1) as api_resp:
+                await download_resp.prepare(self.request)
 
-            count = 0
-            file_size = file.size or 0
-            while True:
-                chunk = await api_resp.content.read(1024 * 1024)
-                if len(chunk) > 0:
-                    count += len(chunk)
-                    log.info("Download {}%.".format(int((count / file_size) * 100)))
-                    download_resp.write(chunk)
-                    await download_resp.drain()
-                else:
-                    break
+                count = 0
+                file_size = file.size or 0
+                while True:
+                    chunk = await api_resp.content.read(1024 * 1024)
+                    if len(chunk) > 0:
+                        count += len(chunk)
+                        log.info("Download {}%.".format(int((count / file_size) * 100)))
+                        download_resp.write(chunk)
+                        await download_resp.drain()
+                    else:
+                        break
 
         return download_resp
 
@@ -357,18 +358,18 @@ class GCloudFileManager(object):
                 await util.get_bucket_name(),
                 quote_plus(file.uri)
             )
-            api_resp = await session.get(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
-            }, params={
-                'alt': 'media'
-            })
-
-            while True:
-                chunk = await api_resp.content.read(1024 * 1024)
-                if len(chunk) > 0:
-                    yield chunk
-                else:
-                    break
+            async with session.get(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                    }, params={
+                        'alt': 'media'
+                    }, timeout=-1) as api_resp:
+                while True:
+                    chunk = await api_resp.content.read(1024 * 1024)
+                    if len(chunk) > 0:
+                        yield chunk
+                    else:
+                        break
 
     async def save_file(self, generator, content_type=None, size=None,
                         filename=None):
@@ -443,17 +444,18 @@ class GCloudFile:
                 bucket_name,
                 quote_plus(new_uri)
             )
-            resp = await session.post(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
-                'Content-Type': 'application/json'
-            })
-            if resp.status == 404:
-                log.error(f'Could not rename file: {self.uri} to {new_uri}')
-            data = await resp.json()
-            assert data['name'] == new_uri
+            async with session.post(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'Content-Type': 'application/json'
+                    }) as resp:
+                if resp.status == 404:
+                    log.error(f'Could not rename file: {self.uri} to {new_uri}')
+                data = await resp.json()
+                assert data['name'] == new_uri
 
-            await self.deleteUpload(self.uri)
-            self._uri = new_uri
+                await self.deleteUpload(self.uri)
+                self._uri = new_uri
 
     async def initUpload(self, context):
         """Init an upload.
@@ -471,60 +473,59 @@ class GCloudFile:
 
         init_url = UPLOAD_URL.format(bucket=await util.get_bucket_name()) + '&name=' +\
             self._upload_file_id
-        session = aiohttp.ClientSession()
+        async with aiohttp.ClientSession() as session:
 
-        creator = ','.join([x.principal.id for x
-                            in request.security.participations])
-        metadata = json.dumps({
-            'CREATOR': creator,
-            'REQUEST': str(request),
-            'NAME': self.filename
-        })
-        call_size = len(metadata)
-        async with session.post(
-                init_url,
-                headers={
-                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
-                    'X-Upload-Content-Type': _to_str(self.content_type),
-                    'X-Upload-Content-Length': str(self._size),
-                    'Content-Type': 'application/json; charset=UTF-8',
-                    'Content-Length': str(call_size)
-                },
-                data=metadata) as call:
-            if call.status != 200:
-                text = await call.text()
-                raise GoogleCloudException(text)
-            self._resumable_uri = call.headers['Location']
-        session.close()
-        self._current_upload = 0
-        self._resumable_uri_date = datetime.now(tz=tzlocal())
-        await notify(InitialGCloudUpload(context))
+            creator = ','.join([x.principal.id for x
+                                in request.security.participations])
+            metadata = json.dumps({
+                'CREATOR': creator,
+                'REQUEST': str(request),
+                'NAME': self.filename
+            })
+            call_size = len(metadata)
+            async with session.post(
+                    init_url,
+                    headers={
+                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'X-Upload-Content-Type': _to_str(self.content_type),
+                        'X-Upload-Content-Length': str(self._size),
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'Content-Length': str(call_size)
+                    },
+                    data=metadata) as call:
+                if call.status != 200:
+                    text = await call.text()
+                    raise GoogleCloudException(text)
+                self._resumable_uri = call.headers['Location']
+
+            self._current_upload = 0
+            self._resumable_uri_date = datetime.now(tz=tzlocal())
+            await notify(InitialGCloudUpload(context))
 
     async def appendData(self, data):
-        session = aiohttp.ClientSession()
+        async with aiohttp.ClientSession() as session:
 
-        content_range = 'bytes {init}-{chunk}/{total}'.format(
-            init=self._current_upload,
-            chunk=self._current_upload + len(data) - 1,
-            total=self._size)
-        async with session.put(
-                self._resumable_uri,
-                headers={
-                    'Content-Length': str(len(data)),
-                    'Content-Type': _to_str(self.content_type),
-                    'Content-Range': content_range
-                },
-                data=data) as call:
-            text = await call.text()  # noqa
-            if call.status not in [200, 201, 308]:
-                log.error(text)
-            # assert call.status in [200, 201, 308]
-            if call.status == 308:
-                self._current_upload = int(call.headers['Range'].split('-')[1])
-            if call.status in [200, 201]:
-                self._current_upload = self._size
-        session.close()
-        return call
+            content_range = 'bytes {init}-{chunk}/{total}'.format(
+                init=self._current_upload,
+                chunk=self._current_upload + len(data) - 1,
+                total=self._size)
+            async with session.put(
+                    self._resumable_uri,
+                    headers={
+                        'Content-Length': str(len(data)),
+                        'Content-Type': _to_str(self.content_type),
+                        'Content-Range': content_range
+                    },
+                    data=data) as call:
+                text = await call.text()  # noqa
+                if call.status not in [200, 201, 308]:
+                    log.error(text)
+                # assert call.status in [200, 201, 308]
+                if call.status == 308:
+                    self._current_upload = int(call.headers['Range'].split('-')[1])
+                if call.status in [200, 201]:
+                    self._current_upload = self._size
+                return call
 
     def actualSize(self):
         return self._current_upload
@@ -549,12 +550,13 @@ class GCloudFile:
                     OBJECT_BASE_URL,
                     await util.get_bucket_name(),
                     quote_plus(uri))
-                resp = await session.delete(url, headers={
-                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
-                })
-                data = await resp.json()
-                if resp.status not in (200, 204, 404):
-                    raise GoogleCloudException(json.dumps(data))
+                async with session.delete(
+                        url, headers={
+                            'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                        }) as resp:
+                    data = await resp.json()
+                    if resp.status not in (200, 204, 404):
+                        raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
 
@@ -667,30 +669,32 @@ class GCloudBlobStore(object):
             url = '{}/{}/o'.format(
                 OBJECT_BASE_URL,
                 await self.get_bucket_name())
-            resp = await session.get(url, headers={
-                'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
-            }, params={
-                'prefix': req._container_id + '/'
-            })
-            assert resp.status == 200
-            data = await resp.json()
-            if 'items' not in data:
-                return
-            for item in data['items']:
-                yield item
+            async with session.get(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                    }, params={
+                        'prefix': req._container_id + '/'
+                    }) as resp:
+                assert resp.status == 200
+                data = await resp.json()
+                if 'items' not in data:
+                    return
+                for item in data['items']:
+                    yield item
 
             page_token = data.get('nextPageToken')
             while page_token is not None:
-                resp = await session.get(url, headers={
-                    'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
-                }, params={
-                    'prefix': req._container_id,
-                    'pageToken': page_token
-                })
-                data = await resp.json()
-                items = data.get('items', [])
-                if len(items) == 0:
-                    break
-                for item in items:
-                    yield item
-                page_token = data.get('nextPageToken')
+                async with session.get(
+                        url, headers={
+                            'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                        }, params={
+                            'prefix': req._container_id,
+                            'pageToken': page_token
+                        }) as resp:
+                    data = await resp.json()
+                    items = data.get('items', [])
+                    if len(items) == 0:
+                        break
+                    for item in items:
+                        yield item
+                    page_token = data.get('nextPageToken')

@@ -1,4 +1,4 @@
-1.0.20 (unreleased)
+1.0.20 (2017-09-27)
 -------------------
 
 - Do not timeout when downloading for gcloud

@@ -169,7 +169,7 @@ class GCloudFileManager(object):
                 break
             if resp.status == 308:
                 count = 0
-                data = await read_request_data(bytes_to_read)
+                data = await read_request_data(self.request, bytes_to_read)
 
             else:
                 count += 1
@@ -275,7 +275,7 @@ class GCloudFileManager(object):
             if resp.status == 308:
                 # We continue resumable
                 count = 0
-                data = await read_request_data(bytes_to_read)
+                data = await read_request_data(self.request, bytes_to_read)
 
             else:
                 count += 1

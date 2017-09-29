@@ -239,6 +239,8 @@ async def test_iterate_storage(dummy_request):
 
     for _ in range(20):
         request._payload = FakeContentReader()
+        request._cache_data = b''
+        request._last_read_pos = 0
         ob = create_content()
         ob.file = None
         mng = GCloudFileManager(ob, request, IContent['file'])

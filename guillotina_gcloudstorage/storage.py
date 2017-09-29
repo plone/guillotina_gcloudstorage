@@ -519,7 +519,6 @@ class GCloudFile:
 
     async def appendData(self, data):
         async with aiohttp.ClientSession() as session:
-
             content_range = 'bytes {init}-{chunk}/{total}'.format(
                 init=self._current_upload,
                 chunk=self._current_upload + len(data) - 1,
@@ -537,7 +536,7 @@ class GCloudFile:
                     log.error(text)
                 # assert call.status in [200, 201, 308]
                 if call.status == 308:
-                    self._current_upload = int(call.headers['Range'].split('-')[1])
+                    self._current_upload = len(data)
                 if call.status in [200, 201]:
                     self._current_upload = self._size
                 return call

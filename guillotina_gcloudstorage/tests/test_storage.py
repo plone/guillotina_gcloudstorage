@@ -6,6 +6,7 @@ from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import GCloudFile
 from guillotina_gcloudstorage.storage import GCloudFileField
 from guillotina_gcloudstorage.storage import GCloudFileManager
+from guillotina_gcloudstorage.storage import MAX_REQUEST_CACHE_SIZE
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
 from guillotina_gcloudstorage.storage import UnRetryableRequestError
 from hashlib import md5
@@ -296,7 +297,7 @@ async def test_raises_not_retryable(dummy_request):
 
     file_data = b''
     # we want to test multiple chunks here...
-    while len(file_data) < CHUNK_SIZE:
+    while len(file_data) < MAX_REQUEST_CACHE_SIZE:
         file_data += _test_gif
 
     request.headers.update({

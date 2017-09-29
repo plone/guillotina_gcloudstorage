@@ -47,6 +47,7 @@ SCOPES = ['https://www.googleapis.com/auth/devstorage.read_write']
 UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'  # noqa
 OBJECT_BASE_URL = 'https://www.googleapis.com/storage/v1/b'
 CHUNK_SIZE = 524288
+MAX_REQUEST_CACHE_SIZE = 6 * 1024 * 1024
 MAX_RETRIES = 5
 
 
@@ -89,7 +90,7 @@ async def read_request_data(request, chunk_size=CHUNK_SIZE):
         data = e.partial
 
     if request._cache_data is not None:
-        if len(request._cache_data) + len(data) > CHUNK_SIZE:
+        if len(request._cache_data) + len(data) > MAX_REQUEST_CACHE_SIZE:
             # we only allow caching up to chunk size, otherwise, no cache data..
             request._cache_data = None
         else:

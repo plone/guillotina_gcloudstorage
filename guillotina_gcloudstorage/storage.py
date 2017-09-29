@@ -60,6 +60,29 @@ def _to_str(value):
     return value
 
 
+async def read_request_data(request, chunk_size=CHUNK_SIZE):
+    if getattr(request, '_retry_attempt', 0) > 0:
+        # we are on a retry request, see if we have read cached data yet...
+        if request._retry_attempt > getattr(request, '_last_cache_data_retry_count', 0):
+            data = request._cache_data[request._last_read_pos:request._last_read_pos + chunk_size]
+            request._last_read_pos += len(data)
+            if request._last_read_pos >= len(request._cache_data):
+                # done reading cache data
+                request._last_cache_data_retry_count = request._retry_attempt
+            return data
+
+    if not hasattr(request, '_cache_data'):
+        request._cache_data = b''
+
+    try:
+        data = await request.content.readexactly(chunk_size)
+    except asyncio.IncompleteReadError as e:
+        data = e.partial
+    request._cache_data += data
+    request._last_read_pos = len(request._cache_data)
+    return data
+
+
 @configure.adapter(for_=IGCloudFile, provides=IValueToJson)
 def json_converter(value):
     if value is None:
@@ -129,10 +152,8 @@ class GCloudFileManager(object):
             file.filename = uuid.uuid4().hex
 
         await file.initUpload(self.context)
-        try:
-            data = await self.request.content.readexactly(CHUNK_SIZE)
-        except asyncio.IncompleteReadError as e:
-            data = e.partial
+        self.request._last_read_pos = 0
+        data = await read_request_data(self.request)
 
         count = 0
         while data:
@@ -148,10 +169,7 @@ class GCloudFileManager(object):
                 break
             if resp.status == 308:
                 count = 0
-                try:
-                    data += await self.request.content.readexactly(bytes_to_read)  # noqa
-                except asyncio.IncompleteReadError as e:
-                    data += e.partial
+                data = await read_request_data(self.request, bytes_to_read)
 
             else:
                 count += 1
@@ -216,10 +234,10 @@ class GCloudFileManager(object):
             file._current_upload = int(self.request.headers['UPLOAD-OFFSET'])
         else:
             raise AttributeError('No upload-offset header')
-        try:
-            data = await self.request.content.readexactly(to_upload)
-        except asyncio.IncompleteReadError as e:
-            data = e.partial
+
+        self.request._last_read_pos = 0
+        data = await read_request_data(self.request, to_upload)
+
         count = 0
         while data:
             old_current_upload = file._current_upload
@@ -257,10 +275,7 @@ class GCloudFileManager(object):
             if resp.status == 308:
                 # We continue resumable
                 count = 0
-                try:
-                    data += await self.request.content.readexactly(bytes_to_read)  # noqa
-                except asyncio.IncompleteReadError as e:
-                    data += e.partial
+                data = await read_request_data(self.request, bytes_to_read)
 
             else:
                 count += 1
@@ -522,7 +537,8 @@ class GCloudFile:
                     log.error(text)
                 # assert call.status in [200, 201, 308]
                 if call.status == 308:
-                    self._current_upload = int(call.headers['Range'].split('-')[1])
+                    # gcloud sends a range position header, not a size so we append 1
+                    self._current_upload = int(call.headers['Range'].split('-')[1]) + 1
                 if call.status in [200, 201]:
                     self._current_upload = self._size
                 return call

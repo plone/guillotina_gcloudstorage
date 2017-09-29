@@ -26,7 +26,7 @@ class FakeContentReader:
 
     async def readexactly(self, size):
         data = self._file_data[self._pointer:self._pointer + size]
-        self._pointer += size
+        self._pointer += len(data)
         return data
 
     def seek(self, pos):
@@ -131,6 +131,8 @@ async def test_store_file_deletes_already_started(dummy_request):
     ob.file._uri = None
 
     request._payload = FakeContentReader()
+    request._cache_data = b''
+    request._last_read_pos = 0
 
     await mng.upload()
 
@@ -168,17 +170,6 @@ async def test_store_file_when_request_retry_happens(dummy_request):
     assert len(items) == 1
     assert items[0]['name'] == ob.file.uri
 
-    original = ob.file._uri
-    ob.file._upload_file_id = ob.file._uri  # like it is in middle of upload
-    ob.file._uri = None
-
-    request._payload = FakeContentReader()
-
-    await mng.upload()
-
-    assert ob.file._upload_file_id is None
-    assert ob.file.uri != original
-
     # test retry...
     request._retry_attempt = 1
     await mng.upload()
@@ -190,7 +181,6 @@ async def test_store_file_when_request_retry_happens(dummy_request):
     assert len(await get_all_objects()) == 1
     await ob.file.deleteUpload()
     assert len(await get_all_objects()) == 0
-
 
 
 def test_gen_key(dummy_request):

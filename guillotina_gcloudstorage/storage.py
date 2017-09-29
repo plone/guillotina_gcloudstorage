@@ -47,6 +47,7 @@ SCOPES = ['https://www.googleapis.com/auth/devstorage.read_write']
 UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'  # noqa
 OBJECT_BASE_URL = 'https://www.googleapis.com/storage/v1/b'
 CHUNK_SIZE = 524288
+MAX_REQUEST_CACHE_SIZE = 6 * 1024 * 1024
 MAX_RETRIES = 5
 
 
@@ -60,10 +61,19 @@ def _to_str(value):
     return value
 
 
+class UnRetryableRequestError(Exception):
+    pass
+
+
 async def read_request_data(request, chunk_size=CHUNK_SIZE):
     if getattr(request, '_retry_attempt', 0) > 0:
         # we are on a retry request, see if we have read cached data yet...
         if request._retry_attempt > getattr(request, '_last_cache_data_retry_count', 0):
+            if request._cache_data is None:
+                # request payload was too large to fit into request cache.
+                # so retrying this request is not supported and we need to throw
+                # another error
+                raise UnRetryableRequestError()
             data = request._cache_data[request._last_read_pos:request._last_read_pos + chunk_size]
             request._last_read_pos += len(data)
             if request._last_read_pos >= len(request._cache_data):
@@ -78,8 +88,15 @@ async def read_request_data(request, chunk_size=CHUNK_SIZE):
         data = await request.content.readexactly(chunk_size)
     except asyncio.IncompleteReadError as e:
         data = e.partial
-    request._cache_data += data
-    request._last_read_pos = len(request._cache_data)
+
+    if request._cache_data is not None:
+        if len(request._cache_data) + len(data) > MAX_REQUEST_CACHE_SIZE:
+            # we only allow caching up to chunk size, otherwise, no cache data..
+            request._cache_data = None
+        else:
+            request._cache_data += data
+
+    request._last_read_pos += len(data)
     return data
 
 

@@ -1,7 +1,8 @@
 1.0.22 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Limit request limit cache size to a max of the CHUNK_SIZE
+  [vangheem]
 
 
 1.0.21 (2017-09-29)

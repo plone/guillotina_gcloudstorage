@@ -142,6 +142,57 @@ async def test_store_file_deletes_already_started(dummy_request):
     assert len(await get_all_objects()) == 0
 
 
+async def test_store_file_when_request_retry_happens(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    await _cleanup()
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(_test_gif),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+    request._payload = FakeContentReader()
+
+    ob = create_content()
+    ob.file = None
+    mng = GCloudFileManager(ob, request, IContent['file'])
+    await mng.upload()
+    assert ob.file._upload_file_id is None
+    assert ob.file.uri is not None
+
+    items = await get_all_objects()
+    assert len(items) == 1
+    assert items[0]['name'] == ob.file.uri
+
+    original = ob.file._uri
+    ob.file._upload_file_id = ob.file._uri  # like it is in middle of upload
+    ob.file._uri = None
+
+    request._payload = FakeContentReader()
+
+    await mng.upload()
+
+    assert ob.file._upload_file_id is None
+    assert ob.file.uri != original
+
+    # test retry...
+    request._retry_attempt = 1
+    await mng.upload()
+
+    assert ob.file.content_type == b'image/gif'
+    assert ob.file.filename == 'test.gif'
+    assert ob.file._size == len(_test_gif)
+
+    assert len(await get_all_objects()) == 1
+    await ob.file.deleteUpload()
+    assert len(await get_all_objects()) == 0
+
+
+
 def test_gen_key(dummy_request):
     request = dummy_request  # noqa
     request._container_id = 'test-container'

@@ -463,7 +463,7 @@ class GCloudFile:
             context._p_oid,
             uuid.uuid4().hex)
 
-    async def rename_cloud_file(self, new_uri):
+    async def copy_cloud_file(self, new_uri):
         if self.uri is None:
             Exception('To rename a uri must be set on the object')
         util = getUtility(IGCloudBlobStore)
@@ -486,8 +486,14 @@ class GCloudFile:
                 data = await resp.json()
                 assert data['name'] == new_uri
 
-                await self.deleteUpload(self.uri)
+                old_uri = self.uri
                 self._uri = new_uri
+                return old_uri
+
+    async def rename_cloud_file(self, new_uri):
+        old_uri = await self.copy_cloud_file(new_uri)
+        if old_uri:
+            await self.deleteUpload(old_uri)
 
     async def initUpload(self, context):
         """Init an upload.

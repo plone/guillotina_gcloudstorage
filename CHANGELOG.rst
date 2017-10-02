@@ -1,4 +1,4 @@
-1.0.23 (unreleased)
+1.0.23 (2017-10-02)
 -------------------
 
 - Add copy_cloud_file method

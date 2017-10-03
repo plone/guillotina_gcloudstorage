@@ -77,7 +77,7 @@ class GCloudFileManager(object):
         self.context._p_register()  # writing to object
 
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             file = GCloudFile(content_type=self.request.content_type)
             self.field.set(self.field.context or self.context, file)
             # Its a long transaction, savepoint
@@ -141,7 +141,7 @@ class GCloudFileManager(object):
             return await self.tus_patch()
 
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             file = GCloudFile(content_type=self.request.content_type)
             self.field.set(self.field.context or self.context, file)
         if 'CONTENT-LENGTH' in self.request.headers:
@@ -248,7 +248,7 @@ class GCloudFileManager(object):
 
     async def tus_head(self):
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             raise KeyError('No file on this context')
         head_response = {
             'Upload-Offset': str(file.get_actual_size()),
@@ -273,7 +273,7 @@ class GCloudFileManager(object):
         if disposition is None:
             disposition = self.request.GET.get('disposition', 'attachment')
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             raise AttributeError('No field value')
 
         cors_renderer = app_settings['cors_renderer'](self.request)
@@ -318,7 +318,7 @@ class GCloudFileManager(object):
 
     async def iter_data(self):
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             raise AttributeError('No field value')
 
         util = getUtility(IGCloudBlobStore)
@@ -346,7 +346,7 @@ class GCloudFileManager(object):
         self.context._p_register()  # writing to object
 
         file = self.field.get(self.field.context or self.context)
-        if file is None:
+        if not isinstance(file, GCloudFile):
             file = GCloudFile(content_type=content_type)
             self.field.set(self.field.context or self.context, file)
 

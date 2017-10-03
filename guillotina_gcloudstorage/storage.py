@@ -8,17 +8,17 @@ from guillotina import configure
 from guillotina.browser import Response
 from guillotina.component import getUtility
 from guillotina.event import notify
+from guillotina.files import BaseCloudFile
+from guillotina.files import read_request_data
 from guillotina.interfaces import IAbsoluteURL
 from guillotina.interfaces import IApplication
 from guillotina.interfaces import IFileManager
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
 from guillotina.interfaces import IResource
-from guillotina.interfaces import IValueToJson
 from guillotina.schema import Object
-from guillotina.schema.fieldproperty import FieldProperty
-from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
+from guillotina.utils import to_str
 from guillotina_gcloudstorage.events import FinishGCloudUpload
 from guillotina_gcloudstorage.events import InitialGCloudUpload
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
@@ -29,13 +29,11 @@ from urllib.parse import quote_plus
 from zope.interface import implementer
 
 import aiohttp
-import asyncio
 import base64
 import google.cloud.exceptions
 import google.cloud.storage
 import json
 import logging
-import mimetypes
 import uuid
 
 
@@ -47,71 +45,11 @@ SCOPES = ['https://www.googleapis.com/auth/devstorage.read_write']
 UPLOAD_URL = 'https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable'  # noqa
 OBJECT_BASE_URL = 'https://www.googleapis.com/storage/v1/b'
 CHUNK_SIZE = 524288
-MAX_REQUEST_CACHE_SIZE = 6 * 1024 * 1024
 MAX_RETRIES = 5
 
 
 class GoogleCloudException(Exception):
     pass
-
-
-def _to_str(value):
-    if isinstance(value, bytes):
-        value = value.decode('utf-8')
-    return value
-
-
-class UnRetryableRequestError(Exception):
-    pass
-
-
-async def read_request_data(request, chunk_size=CHUNK_SIZE):
-    if getattr(request, '_retry_attempt', 0) > 0:
-        # we are on a retry request, see if we have read cached data yet...
-        if request._retry_attempt > getattr(request, '_last_cache_data_retry_count', 0):
-            if request._cache_data is None:
-                # request payload was too large to fit into request cache.
-                # so retrying this request is not supported and we need to throw
-                # another error
-                raise UnRetryableRequestError()
-            data = request._cache_data[request._last_read_pos:request._last_read_pos + chunk_size]
-            request._last_read_pos += len(data)
-            if request._last_read_pos >= len(request._cache_data):
-                # done reading cache data
-                request._last_cache_data_retry_count = request._retry_attempt
-            return data
-
-    if not hasattr(request, '_cache_data'):
-        request._cache_data = b''
-
-    try:
-        data = await request.content.readexactly(chunk_size)
-    except asyncio.IncompleteReadError as e:
-        data = e.partial
-
-    if request._cache_data is not None:
-        if len(request._cache_data) + len(data) > MAX_REQUEST_CACHE_SIZE:
-            # we only allow caching up to chunk size, otherwise, no cache data..
-            request._cache_data = None
-        else:
-            request._cache_data += data
-
-    request._last_read_pos += len(data)
-    return data
-
-
-@configure.adapter(for_=IGCloudFile, provides=IValueToJson)
-def json_converter(value):
-    if value is None:
-        return value
-
-    return {
-        'filename': value.filename,
-        'content_type': _to_str(value.content_type),
-        'size': value.size,
-        'extension': value.extension,
-        'md5': value.md5
-    }
 
 
 @configure.adapter(
@@ -138,10 +76,10 @@ class GCloudFileManager(object):
         """
         self.context._p_register()  # writing to object
 
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             file = GCloudFile(content_type=self.request.content_type)
-            self.field.set(self.context, file)
+            self.field.set(self.field.context or self.context, file)
             # Its a long transaction, savepoint
             # trns = get_transaction(self.request)
             # XXX no savepoint support right now?
@@ -168,14 +106,14 @@ class GCloudFileManager(object):
         else:
             file.filename = uuid.uuid4().hex
 
-        await file.initUpload(self.context)
+        await file.init_upload(self.context)
         self.request._last_read_pos = 0
-        data = await read_request_data(self.request)
+        data = await read_request_data(self.request, CHUNK_SIZE)
 
         count = 0
         while data:
             old_current_upload = file._current_upload
-            resp = await file.appendData(data)
+            resp = await file.append_data(data)
             readed_bytes = file._current_upload - old_current_upload
 
             data = data[readed_bytes:]
@@ -193,7 +131,7 @@ class GCloudFileManager(object):
                 if count > MAX_RETRIES:
                     raise AttributeError('MAX retries error')
         # Test resp and checksum to finish upload
-        await file.finishUpload(self.context)
+        await file.finish_upload(self.context)
 
     async def tus_create(self):
         self.context._p_register()  # writing to object
@@ -202,10 +140,10 @@ class GCloudFileManager(object):
         if self.request.headers.get('X-HTTP-Method-Override') == 'PATCH':
             return await self.tus_patch()
 
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             file = GCloudFile(content_type=self.request.content_type)
-            self.field.set(self.context, file)
+            self.field.set(self.field.context or self.context, file)
         if 'CONTENT-LENGTH' in self.request.headers:
             file._current_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
@@ -230,7 +168,7 @@ class GCloudFileManager(object):
             filename = self.request.headers['UPLOAD-METADATA']
             file.filename = base64.b64decode(filename.split()[1]).decode('utf-8')
 
-        await file.initUpload(self.context)
+        await file.init_upload(self.context)
         # Location will need to be adapted on aiohttp 1.1.x
         resp = Response(headers={
             'Location': IAbsoluteURL(self.context, self.request)() + '/@tusupload/' + self.field.__name__,  # noqa
@@ -241,7 +179,7 @@ class GCloudFileManager(object):
 
     async def tus_patch(self):
         self.context._p_register()  # writing to object
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if 'CONTENT-LENGTH' in self.request.headers:
             to_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
@@ -258,7 +196,7 @@ class GCloudFileManager(object):
         count = 0
         while data:
             old_current_upload = file._current_upload
-            resp = await file.appendData(data)
+            resp = await file.append_data(data)
             # The amount of bytes that are readed
             if resp.status in [200, 201]:
                 # If we finish the current upload is the size of the file
@@ -274,7 +212,7 @@ class GCloudFileManager(object):
 
             if resp.status in [200, 201]:
                 # If we are finished lets close it
-                await file.finishUpload(self.context)
+                await file.finish_upload(self.context)
                 data = None
 
             if bytes_to_read == 0:
@@ -301,7 +239,7 @@ class GCloudFileManager(object):
         expiration = file._resumable_uri_date + timedelta(days=7)
 
         resp = Response(headers={
-            'Upload-Offset': str(file.actualSize()),
+            'Upload-Offset': str(file.get_actual_size()),
             'Tus-Resumable': '1.0.0',
             'Upload-Expires': expiration.isoformat(),
             'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Expires,Tus-Resumable'
@@ -309,11 +247,11 @@ class GCloudFileManager(object):
         return resp
 
     async def tus_head(self):
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             raise KeyError('No file on this context')
         head_response = {
-            'Upload-Offset': str(file.actualSize()),
+            'Upload-Offset': str(file.get_actual_size()),
             'Tus-Resumable': '1.0.0',
             'Access-Control-Expose-Headers': 'Upload-Offset,Upload-Length,Tus-Resumable'
         }
@@ -334,7 +272,7 @@ class GCloudFileManager(object):
     async def download(self, disposition=None):
         if disposition is None:
             disposition = self.request.GET.get('disposition', 'attachment')
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             raise AttributeError('No field value')
 
@@ -379,7 +317,7 @@ class GCloudFileManager(object):
         return download_resp
 
     async def iter_data(self):
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             raise AttributeError('No field value')
 
@@ -407,61 +345,28 @@ class GCloudFileManager(object):
                         filename=None):
         self.context._p_register()  # writing to object
 
-        file = self.field.get(self.context)
+        file = self.field.get(self.field.context or self.context)
         if file is None:
             file = GCloudFile(content_type=content_type)
-            self.field.set(self.context, file)
+            self.field.set(self.field.context or self.context, file)
 
         file._size = size
         if filename is None:
             filename = uuid.uuid4().hex
         file.filename = filename
 
-        await file.initUpload(self.context)
+        await file.init_upload(self.context)
 
         async for data in generator():
-            await file.appendData(data)
+            await file.append_data(data)
 
-        await file.finishUpload(self.context)
+        await file.finish_upload(self.context)
+        return file
 
 
 @implementer(IGCloudFile)
-class GCloudFile:
+class GCloudFile(BaseCloudFile):
     """File stored in a GCloud, with a filename."""
-
-    filename = FieldProperty(IGCloudFile['filename'])
-
-    def __init__(self, content_type='application/octet-stream',
-                 filename=None, size=0, md5=None):
-        if not isinstance(content_type, bytes):
-            content_type = content_type.encode('utf8')
-        self.content_type = content_type
-        if filename is not None:
-            self.filename = filename
-            extension_discovery = filename.split('.')
-            if len(extension_discovery) > 1:
-                self._extension = extension_discovery[-1]
-        elif self.filename is None:
-            self.filename = uuid.uuid4().hex
-
-        self._size = size
-        self._md5 = md5
-
-    def guess_content_type(self):
-        ct = _to_str(self.content_type)
-        if ct == 'application/octet-stream':
-            # try guessing content_type
-            ct, _ = mimetypes.guess_type(self.filename)
-            if ct is None:
-                ct = 'application/octet-stream'
-        return ct
-
-    def generate_key(self, request, context):
-        return '{}{}/{}::{}'.format(
-            request._container_id,
-            get_content_path(context),
-            context._p_oid,
-            uuid.uuid4().hex)
 
     async def copy_cloud_file(self, new_uri):
         if self.uri is None:
@@ -493,9 +398,9 @@ class GCloudFile:
     async def rename_cloud_file(self, new_uri):
         old_uri = await self.copy_cloud_file(new_uri)
         if old_uri:
-            await self.deleteUpload(old_uri)
+            await self.delete_upload(old_uri)
 
-    async def initUpload(self, context):
+    async def init_upload(self, context):
         """Init an upload.
 
         self._uload_file_id : temporal url to image beeing uploaded
@@ -505,7 +410,7 @@ class GCloudFile:
         util = getUtility(IGCloudBlobStore)
         request = get_current_request()
         if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
-            await self.deleteUpload(self._upload_file_id)
+            await self.delete_upload(self._upload_file_id)
 
         self._upload_file_id = self.generate_key(request, context)
 
@@ -525,7 +430,7 @@ class GCloudFile:
                     init_url,
                     headers={
                         'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
-                        'X-Upload-Content-Type': _to_str(self.content_type),
+                        'X-Upload-Content-Type': to_str(self.content_type),
                         'X-Upload-Content-Length': str(self._size),
                         'Content-Type': 'application/json; charset=UTF-8',
                         'Content-Length': str(call_size)
@@ -540,7 +445,7 @@ class GCloudFile:
             self._resumable_uri_date = datetime.now(tz=tzlocal())
             await notify(InitialGCloudUpload(context))
 
-    async def appendData(self, data):
+    async def append_data(self, data):
         async with aiohttp.ClientSession() as session:
 
             content_range = 'bytes {init}-{chunk}/{total}'.format(
@@ -551,7 +456,7 @@ class GCloudFile:
                     self._resumable_uri,
                     headers={
                         'Content-Length': str(len(data)),
-                        'Content-Type': _to_str(self.content_type),
+                        'Content-Type': to_str(self.content_type),
                         'Content-Range': content_range
                     },
                     data=data) as call:
@@ -566,20 +471,20 @@ class GCloudFile:
                     self._current_upload = self._size
                 return call
 
-    def actualSize(self):
+    def get_actual_size(self):
         return self._current_upload
 
-    async def finishUpload(self, context):
+    async def finish_upload(self, context):
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
         if self.uri is not None:
-            await self.deleteUpload()
+            await self.delete_upload()
         self._uri = self._upload_file_id
         self._upload_file_id = None
 
         await notify(FinishGCloudUpload(context))
 
-    async def deleteUpload(self, uri=None):
+    async def delete_upload(self, uri=None):
         util = getUtility(IGCloudBlobStore)
         if uri is None:
             uri = self.uri
@@ -598,40 +503,6 @@ class GCloudFile:
                         raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
-
-    def _set_data(self, data):
-        raise NotImplemented('Only specific upload permitted')
-
-    def _get_data(self):
-        raise NotImplemented('Only specific download permitted')
-
-    data = property(_get_data, _set_data)
-
-    @property
-    def uri(self):
-        if hasattr(self, '_uri'):
-            return self._uri
-
-    @property
-    def size(self):
-        if hasattr(self, '_size'):
-            return self._size
-        else:
-            return None
-
-    @property
-    def md5(self):
-        if hasattr(self, '_md5'):
-            return self._md5
-        else:
-            return None
-
-    @property
-    def extension(self):
-        if hasattr(self, '_extension'):
-            return self._extension
-        else:
-            return None
 
 
 @implementer(IGCloudFileField)

@@ -1,4 +1,6 @@
 from guillotina.component import getUtility
+from guillotina.files import MAX_REQUEST_CACHE_SIZE
+from guillotina.files import UnRetryableRequestError
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
@@ -6,9 +8,7 @@ from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import GCloudFile
 from guillotina_gcloudstorage.storage import GCloudFileField
 from guillotina_gcloudstorage.storage import GCloudFileManager
-from guillotina_gcloudstorage.storage import MAX_REQUEST_CACHE_SIZE
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
-from guillotina_gcloudstorage.storage import UnRetryableRequestError
 from hashlib import md5
 from urllib.parse import quote_plus
 from zope.interface import Interface
@@ -99,7 +99,7 @@ async def test_store_file_in_cloud(dummy_request):
     assert ob.file.md5 is not None
 
     assert(len(await get_all_objects()) == 1)
-    await ob.file.deleteUpload()
+    await ob.file.delete_upload()
     assert len(await get_all_objects()) == 0
 
 
@@ -143,7 +143,7 @@ async def test_store_file_deletes_already_started(dummy_request):
     assert ob.file.uri != original
 
     assert len(await get_all_objects()) == 1
-    await ob.file.deleteUpload()
+    await ob.file.delete_upload()
     assert len(await get_all_objects()) == 0
 
 
@@ -182,7 +182,7 @@ async def test_store_file_when_request_retry_happens(dummy_request):
     assert ob.file._size == len(_test_gif)
 
     assert len(await get_all_objects()) == 1
-    await ob.file.deleteUpload()
+    await ob.file.delete_upload()
     assert len(await get_all_objects()) == 0
 
 

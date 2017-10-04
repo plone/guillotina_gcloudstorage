@@ -1,4 +1,4 @@
-1.0.26 (unreleased)
+1.0.26 (2017-10-04)
 -------------------
 
 - Handle google cloud error when deleting existing files

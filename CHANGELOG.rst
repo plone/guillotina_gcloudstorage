@@ -1,7 +1,8 @@
 1.0.26 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Handle google cloud error when deleting existing files
+  [vangheem]
 
 
 1.0.25 (2017-10-03)

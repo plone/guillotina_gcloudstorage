@@ -452,6 +452,7 @@ class GCloudFile(BaseCloudFile):
                 init=self._current_upload,
                 chunk=self._current_upload + len(data) - 1,
                 total=self._size)
+            print(f'uploading {content_range}')
             async with session.put(
                     self._resumable_uri,
                     headers={
@@ -478,7 +479,11 @@ class GCloudFile(BaseCloudFile):
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
         if self.uri is not None:
-            await self.delete_upload()
+            try:
+                await self.delete_upload()
+            except GoogleCloudException:
+                log.warn(f'Could not delete existing google cloud file '
+                         f'with uri: {self.uri}')
         self._uri = self._upload_file_id
         self._upload_file_id = None
 
@@ -498,7 +503,13 @@ class GCloudFile(BaseCloudFile):
                         url, headers={
                             'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
                         }) as resp:
-                    data = await resp.json()
+                    try:
+                        data = await resp.json()
+                    except Exception:
+                        data = {}
+                        text = await resp.text()
+                        log.error(f'Unknown error from google cloud: {text}, '
+                                  f'status: {resp.status}')
                     if resp.status not in (200, 204, 404):
                         raise GoogleCloudException(json.dumps(data))
         else:

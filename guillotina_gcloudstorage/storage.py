@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from aiohttp.web import StreamResponse
+from aiohttp.web_exceptions import HTTPNotFound
 from datetime import datetime
 from datetime import timedelta
 from dateutil.tz import tzlocal
@@ -273,8 +274,8 @@ class GCloudFileManager(object):
         if disposition is None:
             disposition = self.request.GET.get('disposition', 'attachment')
         file = self.field.get(self.field.context or self.context)
-        if not isinstance(file, GCloudFile):
-            raise AttributeError('No field value')
+        if not isinstance(file, GCloudFile) or file.uri is None:
+            return HTTPNotFound(text='No file found')
 
         cors_renderer = app_settings['cors_renderer'](self.request)
         headers = await cors_renderer.get_headers()
@@ -318,7 +319,7 @@ class GCloudFileManager(object):
 
     async def iter_data(self):
         file = self.field.get(self.field.context or self.context)
-        if not isinstance(file, GCloudFile):
+        if not isinstance(file, GCloudFile) or file.uri is None:
             raise AttributeError('No field value')
 
         util = getUtility(IGCloudBlobStore)
@@ -452,7 +453,6 @@ class GCloudFile(BaseCloudFile):
                 init=self._current_upload,
                 chunk=self._current_upload + len(data) - 1,
                 total=self._size)
-            print(f'uploading {content_range}')
             async with session.put(
                     self._resumable_uri,
                     headers={

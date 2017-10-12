@@ -1,6 +1,6 @@
 from guillotina.component import getUtility
+from guillotina.exceptions import UnRetryableRequestError
 from guillotina.files import MAX_REQUEST_CACHE_SIZE
-from guillotina.files import UnRetryableRequestError
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore

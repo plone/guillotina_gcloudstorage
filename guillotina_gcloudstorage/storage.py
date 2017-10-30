@@ -309,12 +309,12 @@ class GCloudFileManager(object):
                 await download_resp.prepare(self.request)
 
                 count = 0
-                file_size = file.size or 0
                 while True:
                     chunk = await api_resp.content.read(1024 * 1024)
                     if len(chunk) > 0:
                         count += len(chunk)
-                        log.info("Download {}%.".format(int((count / file_size) * 100)))
+                        if file.size:
+                            log.info("Download {}%.".format(int((count / file.size) * 100)))
                         download_resp.write(chunk)
                         await download_resp.drain()
                     else:

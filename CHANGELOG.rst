@@ -1,7 +1,8 @@
 1.0.29 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Handle file size being zero for download reporting
+  [vangheem]
 
 
 1.0.28 (2017-10-12)

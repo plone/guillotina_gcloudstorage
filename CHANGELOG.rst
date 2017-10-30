@@ -1,4 +1,4 @@
-1.0.29 (unreleased)
+1.0.29 (2017-10-30)
 -------------------
 
 - Handle file size being zero for download reporting

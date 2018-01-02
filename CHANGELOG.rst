@@ -1,4 +1,4 @@
-1.0.30 (unreleased)
+1.0.30 (2018-01-02)
 -------------------
 
 - Retry google cloud exceptions

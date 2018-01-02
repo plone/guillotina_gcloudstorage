@@ -1,7 +1,8 @@
 1.0.30 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Retry google cloud exceptions
+  [vangheem]
 
 
 1.0.29 (2017-10-30)

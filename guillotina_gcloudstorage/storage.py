@@ -30,6 +30,7 @@ from urllib.parse import quote_plus
 from zope.interface import implementer
 
 import aiohttp
+import backoff
 import base64
 import google.cloud.exceptions
 import google.cloud.storage
@@ -51,6 +52,12 @@ MAX_RETRIES = 5
 
 class GoogleCloudException(Exception):
     pass
+
+
+RETRIABLE_EXCEPTIONS = (
+    GoogleCloudException,
+    aiohttp.client_exceptions.ClientPayloadError
+)
 
 
 @configure.adapter(
@@ -130,7 +137,7 @@ class GCloudFileManager(object):
             else:
                 count += 1
                 if count > MAX_RETRIES:
-                    raise AttributeError('MAX retries error')
+                    raise GoogleCloudException('MAX retries error')
         # Test resp and checksum to finish upload
         await file.finish_upload(self.context)
 
@@ -241,7 +248,7 @@ class GCloudFileManager(object):
             else:
                 count += 1
                 if count > MAX_RETRIES:
-                    raise AttributeError('MAX retries error')
+                    raise GoogleCloudException('MAX retries error')
         expiration = file._resumable_uri_date + timedelta(days=7)
 
         resp = Response(headers={
@@ -406,6 +413,7 @@ class GCloudFile(BaseCloudFile):
         if old_uri:
             await self.delete_upload(old_uri)
 
+    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def init_upload(self, context):
         """Init an upload.
 

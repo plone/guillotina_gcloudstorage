@@ -31,6 +31,7 @@ setup(
         'google-cloud-storage',
         'gcloud',
         'ujson',
+        'backoff'
     ],
     tests_require=[
         'pytest',

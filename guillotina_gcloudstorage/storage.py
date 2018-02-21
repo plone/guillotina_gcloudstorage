@@ -13,6 +13,7 @@ from guillotina.files import BaseCloudFile
 from guillotina.files import read_request_data
 from guillotina.interfaces import IAbsoluteURL
 from guillotina.interfaces import IApplication
+from guillotina.interfaces import IFileCleanup
 from guillotina.interfaces import IFileManager
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
@@ -137,7 +138,8 @@ class GCloudFileManager(object):
             else:
                 count += 1
                 if count > MAX_RETRIES:
-                    raise GoogleCloudException('MAX retries error')
+                    raise GoogleCloudException(
+                        f'MAX retries({MAX_RETRIES}) error {resp}')
         # Test resp and checksum to finish upload
         await file.finish_upload(self.context)
 
@@ -492,11 +494,14 @@ class GCloudFile(BaseCloudFile):
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
         if self.uri is not None:
-            try:
-                await self.delete_upload()
-            except GoogleCloudException:
-                log.warn(f'Could not delete existing google cloud file '
-                         f'with uri: {self.uri}')
+            self._old_uri = self.uri
+            cleanup = IFileCleanup(context, None)
+            if cleanup is None or cleanup.should_clean:
+                try:
+                    await self.delete_upload()
+                except GoogleCloudException:
+                    log.warn(f'Could not delete existing google cloud file '
+                             f'with uri: {self.uri}')
         self._uri = self._upload_file_id
         self._upload_file_id = None
 

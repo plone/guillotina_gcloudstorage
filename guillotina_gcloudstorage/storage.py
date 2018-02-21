@@ -141,7 +141,7 @@ class GCloudFileManager(object):
                     raise GoogleCloudException(
                         f'MAX retries({MAX_RETRIES}) error {resp}')
         # Test resp and checksum to finish upload
-        await file.finish_upload(self.context)
+        await file.finish_upload(self.context, clean=self.should_clean(file))
 
     async def tus_create(self):
         self.context._p_register()  # writing to object
@@ -227,7 +227,7 @@ class GCloudFileManager(object):
 
             if resp.status in [200, 201]:
                 # If we are finished lets close it
-                await file.finish_upload(self.context)
+                await file.finish_upload(self.context, clean=self.should_clean(file))
                 data = None
 
             if bytes_to_read == 0:
@@ -375,8 +375,12 @@ class GCloudFileManager(object):
         async for data in generator():
             await file.append_data(data)
 
-        await file.finish_upload(self.context)
+        await file.finish_upload(self.context, clean=self.should_clean(file))
         return file
+
+    def should_clean(self, file):
+        cleanup = IFileCleanup(self.context, None)
+        return cleanup is None or cleanup.should_clean(file=file, field=self.field)
 
 
 @implementer(IGCloudFile)
@@ -490,13 +494,12 @@ class GCloudFile(BaseCloudFile):
     def get_actual_size(self):
         return self._current_upload
 
-    async def finish_upload(self, context):
+    async def finish_upload(self, context, clean=True):
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
         if self.uri is not None:
             self._old_uri = self.uri
-            cleanup = IFileCleanup(context, None)
-            if cleanup is None or cleanup.should_clean:
+            if clean:
                 try:
                     await self.delete_upload()
                 except GoogleCloudException:

@@ -25,7 +25,7 @@ setup(
     packages=find_packages(exclude=['ez_setup']),
     install_requires=[
         'setuptools',
-        'guillotina>=2.3.24',
+        'guillotina>=2.3.26',
         'protobuf',
         'oauth2client',
         'google-cloud-storage',

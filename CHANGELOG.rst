@@ -1,4 +1,4 @@
-1.0.31 (unreleased)
+1.0.31 (2018-02-20)
 -------------------
 
 - Implement IFileCleanup

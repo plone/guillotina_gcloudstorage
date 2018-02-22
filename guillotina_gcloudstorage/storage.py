@@ -284,7 +284,7 @@ class GCloudFileManager(object):
         })
         return resp
 
-    async def download(self, disposition=None):
+    async def download(self, disposition=None, uri=None):
         if disposition is None:
             disposition = self.request.GET.get('disposition', 'attachment')
         file = self.field.get(self.field.context or self.context)
@@ -307,7 +307,7 @@ class GCloudFileManager(object):
             url = '{}/{}/o/{}'.format(
                 OBJECT_BASE_URL,
                 await util.get_bucket_name(),
-                quote_plus(file.uri)
+                quote_plus(uri or file.uri)
             )
             async with session.get(
                     url, headers={

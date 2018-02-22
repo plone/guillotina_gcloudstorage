@@ -284,30 +284,37 @@ class GCloudFileManager(object):
         })
         return resp
 
-    async def download(self, disposition=None, uri=None):
+    async def download(self, disposition=None, uri=None, filename='download',
+                       content_type='application/octet-stream', size=None):
         if disposition is None:
             disposition = self.request.GET.get('disposition', 'attachment')
-        file = self.field.get(self.field.context or self.context)
-        if not isinstance(file, GCloudFile) or file.uri is None:
-            return HTTPNotFound(text='No file found')
 
         cors_renderer = app_settings['cors_renderer'](self.request)
         headers = await cors_renderer.get_headers()
-        headers.update({
-            'CONTENT-DISPOSITION': f'{disposition}; filename="%s"' % file.filename
-        })
 
+        if uri is None:
+            file = self.field.get(self.field.context or self.context)
+            if not isinstance(file, GCloudFile) or file.uri is None:
+                return HTTPNotFound(text='No file found')
+            filename = file.filename
+            uri = file.uri
+            content_type = file.guess_content_type()
+            size = file.size
+
+        headers.update({
+            'CONTENT-DISPOSITION': f'{disposition}; filename="%s"' % filename
+        })
         download_resp = StreamResponse(headers=headers)
-        download_resp.content_type = file.guess_content_type()
-        if file.size:
-            download_resp.content_length = file.size
+        download_resp.content_type = content_type
+        if size:
+            download_resp.content_length = size
 
         util = getUtility(IGCloudBlobStore)
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o/{}'.format(
                 OBJECT_BASE_URL,
                 await util.get_bucket_name(),
-                quote_plus(uri or file.uri)
+                quote_plus(uri)
             )
             async with session.get(
                     url, headers={
@@ -322,8 +329,8 @@ class GCloudFileManager(object):
                     chunk = await api_resp.content.read(1024 * 1024)
                     if len(chunk) > 0:
                         count += len(chunk)
-                        if file.size:
-                            log.info("Download {}%.".format(int((count / file.size) * 100)))
+                        if size:
+                            log.info("Download {}%.".format(int((count / size) * 100)))
                         download_resp.write(chunk)
                         await download_resp.drain()
                     else:
@@ -499,6 +506,10 @@ class GCloudFile(BaseCloudFile):
         # Delete the old file and update the new uri
         if self.uri is not None:
             self._old_uri = self.uri
+            self._old_size = self.size
+            self._old_filename = self.filename
+            self._old_md5 = self.md5
+            self._old_content_type = self.guess_content_type()
             if clean:
                 try:
                     await self.delete_upload()

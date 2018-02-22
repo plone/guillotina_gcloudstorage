@@ -1,7 +1,8 @@
 1.0.34 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Customize more of the download
+  [vangheem]
 
 
 1.0.33 (2018-02-22)

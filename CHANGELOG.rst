@@ -1,4 +1,4 @@
-1.0.34 (unreleased)
+1.0.34 (2018-02-22)
 -------------------
 
 - Customize more of the download

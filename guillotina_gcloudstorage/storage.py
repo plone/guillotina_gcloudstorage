@@ -439,6 +439,12 @@ class GCloudFile(BaseCloudFile):
         if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
             await self.delete_upload(self._upload_file_id)
 
+        self._old_uri = self.uri
+        self._old_size = self.size
+        self._old_filename = self.filename
+        self._old_md5 = self.md5
+        self._old_content_type = self.guess_content_type()
+
         self._upload_file_id = self.generate_key(request, context)
 
         init_url = UPLOAD_URL.format(bucket=await util.get_bucket_name()) + '&name=' +\
@@ -505,11 +511,6 @@ class GCloudFile(BaseCloudFile):
         # It would be great to do on AfterCommit
         # Delete the old file and update the new uri
         if self.uri is not None:
-            self._old_uri = self.uri
-            self._old_size = self.size
-            self._old_filename = self.filename
-            self._old_md5 = self.md5
-            self._old_content_type = self.guess_content_type()
             if clean:
                 try:
                     await self.delete_upload()

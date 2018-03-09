@@ -1,7 +1,8 @@
 1.0.36 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Fix saving previous file
+  [vangheem]
 
 
 1.0.35 (2018-03-01)

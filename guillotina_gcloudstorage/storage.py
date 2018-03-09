@@ -92,6 +92,9 @@ class GCloudFileManager(object):
             # Its a long transaction, savepoint
             # trns = get_transaction(self.request)
             # XXX no savepoint support right now?
+
+        file.save_previous()
+
         if 'X-UPLOAD-MD5HASH' in self.request.headers:
             file._md5 = self.request.headers['X-UPLOAD-MD5HASH']
         else:
@@ -154,6 +157,9 @@ class GCloudFileManager(object):
         if not isinstance(file, GCloudFile):
             file = GCloudFile(content_type=self.request.content_type)
             self.field.set(self.field.context or self.context, file)
+
+        file.save_previous()
+
         if 'CONTENT-LENGTH' in self.request.headers:
             file._current_upload = int(self.request.headers['CONTENT-LENGTH'])
         else:
@@ -372,6 +378,8 @@ class GCloudFileManager(object):
             file = GCloudFile(content_type=content_type)
             self.field.set(self.field.context or self.context, file)
 
+        file.save_previous()
+
         file._size = size
         if filename is None:
             filename = uuid.uuid4().hex
@@ -426,6 +434,13 @@ class GCloudFile(BaseCloudFile):
         if old_uri:
             await self.delete_upload(old_uri)
 
+    def save_previous(self):
+        self._old_uri = self.uri
+        self._old_size = self.size
+        self._old_filename = self.filename
+        self._old_md5 = self.md5
+        self._old_content_type = self.guess_content_type()
+
     @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def init_upload(self, context):
         """Init an upload.
@@ -438,12 +453,6 @@ class GCloudFile(BaseCloudFile):
         request = get_current_request()
         if hasattr(self, '_upload_file_id') and self._upload_file_id is not None:
             await self.delete_upload(self._upload_file_id)
-
-        self._old_uri = self.uri
-        self._old_size = self.size
-        self._old_filename = self.filename
-        self._old_md5 = self.md5
-        self._old_content_type = self.guess_content_type()
 
         self._upload_file_id = self.generate_key(request, context)
 

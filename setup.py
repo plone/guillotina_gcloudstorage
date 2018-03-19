@@ -2,6 +2,7 @@
 from setuptools import find_packages
 from setuptools import setup
 
+
 setup(
     name='guillotina_gcloudstorage',
     version=open('VERSION').read().strip(),
@@ -21,11 +22,12 @@ setup(
         'pytest-runner',
     ],
     zip_safe=True,
+
     include_package_data=True,
     packages=find_packages(exclude=['ez_setup']),
     install_requires=[
         'setuptools',
-        'guillotina>=2.3.26',
+        'guillotina>=2.5.0.dev0',
         'protobuf',
         'oauth2client',
         'google-cloud-storage',

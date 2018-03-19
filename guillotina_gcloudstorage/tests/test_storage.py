@@ -1,14 +1,17 @@
-from guillotina.component import getUtility
+from guillotina.component import get_utility
 from guillotina.exceptions import UnRetryableRequestError
+from guillotina.files import FileManager
 from guillotina.files import MAX_REQUEST_CACHE_SIZE
+from guillotina.files.adapter import DBDataManager
+from guillotina.files.utils import generate_key
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
-from guillotina_gcloudstorage.storage import GCloudFile
 from guillotina_gcloudstorage.storage import GCloudFileField
 from guillotina_gcloudstorage.storage import GCloudFileManager
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
+from guillotina_gcloudstorage.storage import UPLOAD_URL
 from hashlib import md5
 from urllib.parse import quote_plus
 from zope.interface import Interface
@@ -43,13 +46,13 @@ class IContent(Interface):
 async def test_get_storage_object(dummy_request):
     request = dummy_request  # noqa
     request._container_id = 'test-container'
-    util = getUtility(IGCloudBlobStore)
+    util = get_utility(IGCloudBlobStore)
     assert await util.get_access_token() is not None
     assert await util.get_bucket_name() is not None
 
 
 async def _cleanup():
-    util = getUtility(IGCloudBlobStore)
+    util = get_utility(IGCloudBlobStore)
     async for item in util.iterate_bucket():
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o/{}'.format(
@@ -64,7 +67,7 @@ async def _cleanup():
 
 
 async def get_all_objects():
-    util = getUtility(IGCloudBlobStore)
+    util = get_utility(IGCloudBlobStore)
     items = []
     async for item in util.iterate_bucket():
         items.append(item)
@@ -88,18 +91,19 @@ async def test_store_file_in_cloud(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
-    assert ob.file._upload_file_id is None
+    assert getattr(ob.file, 'upload_file_id', None) is None
     assert ob.file.uri is not None
 
-    assert ob.file.content_type == b'image/gif'
+    assert ob.file.content_type == 'image/gif'
     assert ob.file.filename == 'test.gif'
     assert ob.file._size == len(_test_gif)
     assert ob.file.md5 is not None
 
     assert(len(await get_all_objects()) == 1)
-    await ob.file.delete_upload()
+    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
+    await gmng.delete_upload(ob.file.uri)
     assert len(await get_all_objects()) == 0
 
 
@@ -120,9 +124,9 @@ async def test_store_file_deletes_already_started(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
-    assert ob.file._upload_file_id is None
+    assert getattr(ob.file, 'upload_file_id', None) is None
     assert ob.file.uri is not None
 
     items = await get_all_objects()
@@ -130,8 +134,12 @@ async def test_store_file_deletes_already_started(dummy_request):
     assert items[0]['name'] == ob.file.uri
 
     original = ob.file._uri
-    ob.file._upload_file_id = ob.file._uri  # like it is in middle of upload
-    ob.file._uri = None
+    ob.__uploads__ = {
+        'file': {
+            # like it is in middle of upload so it deletes existing
+            'upload_file_id': ob.file.uri
+        }
+    }
 
     request._payload = FakeContentReader()
     request._cache_data = b''
@@ -139,11 +147,12 @@ async def test_store_file_deletes_already_started(dummy_request):
 
     await mng.upload()
 
-    assert ob.file._upload_file_id is None
+    assert ob.file.upload_file_id is None
     assert ob.file.uri != original
 
     assert len(await get_all_objects()) == 1
-    await ob.file.delete_upload()
+    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
+    await gmng.delete_upload(ob.file.uri)
     assert len(await get_all_objects()) == 0
 
 
@@ -164,9 +173,9 @@ async def test_store_file_when_request_retry_happens(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
-    assert ob.file._upload_file_id is None
+    assert ob.file.upload_file_id is None
     assert ob.file.uri is not None
 
     items = await get_all_objects()
@@ -177,12 +186,13 @@ async def test_store_file_when_request_retry_happens(dummy_request):
     request._retry_attempt = 1
     await mng.upload()
 
-    assert ob.file.content_type == b'image/gif'
+    assert ob.file.content_type == 'image/gif'
     assert ob.file.filename == 'test.gif'
     assert ob.file._size == len(_test_gif)
 
     assert len(await get_all_objects()) == 1
-    await ob.file.delete_upload()
+    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
+    await gmng.delete_upload(ob.file.uri)
     assert len(await get_all_objects()) == 0
 
 
@@ -190,15 +200,14 @@ def test_gen_key(dummy_request):
     request = dummy_request  # noqa
     request._container_id = 'test-container'
     ob = create_content()
-    fi = GCloudFile()
-    key = fi.generate_key(request, ob)
+    key = generate_key(request, ob)
     assert key.startswith('test-container/')
     last = key.split('/')[-1]
     assert '::' in last
     assert last.split('::')[0] == ob._p_oid
 
 
-async def test_rename(dummy_request):
+async def test_copy(dummy_request):
     request = dummy_request  # noqa
     login(request)
     request._container_id = 'test-container'
@@ -215,15 +224,25 @@ async def test_rename(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
 
-    await ob.file.rename_cloud_file('test-container/foobar')
-    assert ob.file.uri == 'test-container/foobar'
+    new_ob = create_content()
+    new_ob.file = None
+    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
+    dm = DBDataManager(gmng)
+    await dm.load()
+    new_gmng = GCloudFileManager(new_ob, request, IContent['file'].bind(new_ob))
+    new_dm = DBDataManager(new_gmng)
+    await new_dm.load()
+    await gmng.copy(new_gmng, new_dm)
+
+    new_ob.file.content_type == ob.file.content_type
+    new_ob.file.size == ob.file.size
+    new_ob.file.uri != ob.file.uri
 
     items = await get_all_objects()
-    assert len(items) == 1
-    assert items[0]['name'] == 'test-container/foobar'
+    assert len(items) == 2
 
 
 async def test_iterate_storage(dummy_request):
@@ -246,10 +265,10 @@ async def test_iterate_storage(dummy_request):
         request._last_read_pos = 0
         ob = create_content()
         ob.file = None
-        mng = GCloudFileManager(ob, request, IContent['file'])
+        mng = FileManager(ob, request, IContent['file'].bind(ob))
         await mng.upload()
 
-    util = getUtility(IGCloudBlobStore)
+    util = get_utility(IGCloudBlobStore)
     count = 0
     async for item in util.iterate_bucket():  # noqa
         count += 1
@@ -280,9 +299,9 @@ async def test_download(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
-    assert ob.file._upload_file_id is None
+    assert ob.file.upload_file_id is None
     assert ob.file.uri is not None
 
     resp = await mng.download()
@@ -311,9 +330,61 @@ async def test_raises_not_retryable(dummy_request):
 
     ob = create_content()
     ob.file = None
-    mng = GCloudFileManager(ob, request, IContent['file'])
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
     await mng.upload()
 
     request._retry_attempt = 1
     with pytest.raises(UnRetryableRequestError):
         await mng.upload()
+
+
+async def test_upload_statuses(dummy_request):
+    request = dummy_request
+    request._container_id = 'test-container'
+    util = get_utility(IGCloudBlobStore)
+    upload_file_id = 'foobar124'
+    bucket_name = await util.get_bucket_name()
+
+    init_url = '{}&name={}'.format(
+        UPLOAD_URL.format(bucket=bucket_name),
+        upload_file_id)
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+                init_url,
+                headers={
+                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                    'X-Upload-Content-Type': 'application/octet-stream',
+                    'Content-Type': 'application/json; charset=UTF-8'
+                }) as call:
+            resumable_uri = call.headers['Location']
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 0-262143/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 262144-524287/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '100',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 524288-524387/524388'
+                },
+                data=b'X' * 100) as call:
+            assert call.status == 200

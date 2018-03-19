@@ -1,7 +1,8 @@
-1.0.37 (unreleased)
--------------------
+1.1.0 (unreleased)
+------------------
 
-- Nothing changed yet.
+- Upgrade to latest guillotina file management to simplify code-base
+  [vangheem]
 
 
 1.0.36 (2018-03-09)

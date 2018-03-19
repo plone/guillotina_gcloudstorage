@@ -84,17 +84,20 @@ class GCloudFileManager(object):
         cleanup = IFileCleanup(self.context, None)
         return cleanup is None or cleanup.should_clean(file=file, field=self.field)
 
-    async def iter_data(self):
-        file = self.field.get(self.field.context or self.context)
-        if file is None or file.uri is None:
-            raise FileNotFoundException('Trying to iterate data with no file')
+    async def iter_data(self, uri=None):
+        if uri is None:
+            file = self.field.get(self.field.context or self.context)
+            if file is None or file.uri is None:
+                raise FileNotFoundException('Trying to iterate data with no file')
+            else:
+                uri = file.uri
 
         util = get_utility(IGCloudBlobStore)
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o/{}'.format(
                 OBJECT_BASE_URL,
                 await util.get_bucket_name(),
-                quote_plus(file.uri)
+                quote_plus(uri)
             )
             async with session.get(
                     url, headers={

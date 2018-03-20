@@ -1,7 +1,8 @@
 1.1.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix logging issue
+  [vangheem]
 
 
 1.1.1 (2018-03-19)

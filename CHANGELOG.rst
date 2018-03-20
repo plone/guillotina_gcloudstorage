@@ -1,4 +1,4 @@
-1.1.3 (unreleased)
+1.1.3 (2018-03-20)
 ------------------
 
 - Another logging fix

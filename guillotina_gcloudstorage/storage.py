@@ -240,7 +240,7 @@ class GCloudFileManager(object):
             if self.should_clean(file):
                 try:
                     await self.delete_upload(file.uri)
-                except GoogleCloudException:
+                except GoogleCloudException as e:
                     log.warn(f'Could not delete existing google cloud file '
                              f'with uri: {file.uri}: {e}')
         await dm.update(

@@ -388,3 +388,73 @@ async def test_upload_statuses(dummy_request):
                 },
                 data=b'X' * 100) as call:
             assert call.status == 200
+
+
+async def test_upload_same_chunk_multiple_times(dummy_request):
+    request = dummy_request
+    request._container_id = 'test-container'
+    util = get_utility(IGCloudBlobStore)
+    upload_file_id = 'foobar124'
+    bucket_name = await util.get_bucket_name()
+
+    init_url = '{}&name={}'.format(
+        UPLOAD_URL.format(bucket=bucket_name),
+        upload_file_id)
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+                init_url,
+                headers={
+                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                    'X-Upload-Content-Type': 'application/octet-stream',
+                    'Content-Type': 'application/json; charset=UTF-8'
+                }) as call:
+            resumable_uri = call.headers['Location']
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 0-262143/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 262144-524287/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 262144-524287/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '262144',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 262144-524287/*'
+                },
+                data=b'X' * 262144) as call:
+            assert call.status == 308
+
+        async with session.put(
+                resumable_uri,
+                headers={
+                    'Content-Length': '100',
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': 'bytes 524288-524387/524388'
+                },
+                data=b'X' * 100) as call:
+            assert call.status == 200

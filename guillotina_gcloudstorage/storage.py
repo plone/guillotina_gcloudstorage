@@ -215,7 +215,6 @@ class GCloudFileManager(object):
         count = 0
         async for chunk in iterable:
             resp = await self._append(dm, chunk, offset)
-
             size = len(chunk)
             count += size
             offset += len(chunk)
@@ -227,7 +226,7 @@ class GCloudFileManager(object):
                     # range header is the byte range google has received,
                     # which is different from the total size--off by one
                     raise HTTPPreconditionFailed(
-                        reason=f'TUS and google cloud storage offsets do not match. '
+                        reason=f'Guillotina and google cloud storage offsets do not match. '
                                f'Google: {range_header}, TUS(offset): {offset}')
             elif resp.status in [200, 201]:
                 # file manager will double check offsets and sizes match

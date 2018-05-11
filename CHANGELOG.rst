@@ -1,7 +1,8 @@
 1.1.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- More strict object checks
+  [vangheem]
 
 
 1.1.3 (2018-03-20)

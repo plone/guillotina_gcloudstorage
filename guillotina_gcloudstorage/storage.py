@@ -68,6 +68,12 @@ class GCloudFile(BaseCloudFile):
     """File stored in a GCloud, with a filename."""
 
 
+def _is_uploaded_file(file):
+    return (file is not None and
+            isinstance(file, GCloudFile) and
+            file.uri is not None)
+
+
 @configure.adapter(
     for_=(IResource, IRequest, IGCloudFileField),
     provides=IGCloudFileStorageManager)
@@ -87,7 +93,7 @@ class GCloudFileManager(object):
     async def iter_data(self, uri=None):
         if uri is None:
             file = self.field.get(self.field.context or self.context)
-            if file is None or file.uri is None:
+            if not _is_uploaded_file(file):
                 raise FileNotFoundException('Trying to iterate data with no file')
             else:
                 uri = file.uri
@@ -235,7 +241,7 @@ class GCloudFileManager(object):
 
     async def finish(self, dm):
         file = self.field.get(self.field.context or self.context)
-        if file is not None and file.uri is not None:
+        if _is_uploaded_file(file):
             if self.should_clean(file):
                 try:
                     await self.delete_upload(file.uri)
@@ -249,7 +255,7 @@ class GCloudFileManager(object):
 
     async def copy(self, to_storage_manager, to_dm):
         file = self.field.get(self.field.context or self.context)
-        if file is None or file.uri is None:
+        if not _is_uploaded_file(file):
             raise HTTPNotFound(reason='To copy a uri must be set on the object')
         new_uri = generate_key(self.request, self.context)
 

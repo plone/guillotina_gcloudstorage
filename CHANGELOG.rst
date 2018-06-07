@@ -1,7 +1,8 @@
 1.1.6 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Handle 404 when copying files
+  [vangheem]
 
 
 1.1.5 (2018-05-12)

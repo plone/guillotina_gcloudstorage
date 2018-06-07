@@ -275,17 +275,21 @@ class GCloudFileManager(object):
                         'Content-Type': 'application/json'
                     }) as resp:
                 if resp.status == 404:
-                    log.error(f'Could not rename file: {self.uri} to {new_uri}')
-                data = await resp.json()
-                assert data['name'] == new_uri
-                await to_dm.finish(
-                    values={
-                        'content_type': data['contentType'],
-                        'size': int(data['size']),
-                        'uri': new_uri,
-                        'filename': file.filename or 'unknown'
-                    }
-                )
+                    text = await resp.text()
+                    reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'
+                    log.error(reason)
+                    raise HTTPNotFound(reason=reason)
+                else:
+                    data = await resp.json()
+                    assert data['name'] == new_uri
+                    await to_dm.finish(
+                        values={
+                            'content_type': data['contentType'],
+                            'size': int(data['size']),
+                            'uri': new_uri,
+                            'filename': file.filename or 'unknown'
+                        }
+                    )
 
 
 @implementer(IGCloudFileField)

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from aiohttp.web_exceptions import HTTPNotFound
-from aiohttp.web_exceptions import HTTPPreconditionFailed
 from datetime import datetime
 from guillotina import configure
 from guillotina.component import get_utility
@@ -13,6 +11,8 @@ from guillotina.interfaces import IFileStorageManager
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
 from guillotina.interfaces import IResource
+from guillotina.response import HTTPNotFound
+from guillotina.response import HTTPPreconditionFailed
 from guillotina.schema import Object
 from guillotina.utils import get_current_request
 from guillotina.utils import to_str
@@ -231,9 +231,10 @@ class GCloudFileManager(object):
                 if offset - 1 != int(range_header.split('-')[-1]):
                     # range header is the byte range google has received,
                     # which is different from the total size--off by one
-                    raise HTTPPreconditionFailed(
-                        reason=f'Guillotina and google cloud storage offsets do not match. '
-                               f'Google: {range_header}, TUS(offset): {offset}')
+                    raise HTTPPreconditionFailed(content={
+                        "reason": f'Guillotina and google cloud storage offsets do not match. '
+                                  f'Google: {range_header}, TUS(offset): {offset}'
+                    })
             elif resp.status in [200, 201]:
                 # file manager will double check offsets and sizes match
                 break
@@ -256,7 +257,9 @@ class GCloudFileManager(object):
     async def copy(self, to_storage_manager, to_dm):
         file = self.field.get(self.field.context or self.context)
         if not _is_uploaded_file(file):
-            raise HTTPNotFound(reason='To copy a uri must be set on the object')
+            raise HTTPNotFound(content={
+                "reason": 'To copy a uri must be set on the object'
+            })
         new_uri = generate_key(self.request, self.context)
 
         util = get_utility(IGCloudBlobStore)
@@ -278,7 +281,9 @@ class GCloudFileManager(object):
                     text = await resp.text()
                     reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'
                     log.error(reason)
-                    raise HTTPNotFound(reason=reason)
+                    raise HTTPNotFound(content={
+                        "reason": reason
+                    })
                 else:
                     data = await resp.json()
                     assert data['name'] == new_uri

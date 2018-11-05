@@ -107,7 +107,7 @@ class GCloudFileManager(object):
             )
             async with session.get(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                        'AUTHORIZATION': 'Bearer %s' % util.get_access_token()
                     }, params={
                         'alt': 'media'
                     }, timeout=-1) as api_resp:
@@ -154,7 +154,7 @@ class GCloudFileManager(object):
             async with session.post(
                     init_url,
                     headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'AUTHORIZATION': 'Bearer %s' % util.get_access_token(),
                         'X-Upload-Content-Type': to_str(dm.content_type),
                         'X-Upload-Content-Length': str(dm.size),
                         'Content-Type': 'application/json; charset=UTF-8',
@@ -182,7 +182,7 @@ class GCloudFileManager(object):
                     quote_plus(uri))
                 async with session.delete(
                         url, headers={
-                            'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                            'AUTHORIZATION': 'Bearer %s' % util.get_access_token()
                         }) as resp:
                     try:
                         data = await resp.json()
@@ -277,7 +277,7 @@ class GCloudFileManager(object):
             )
             async with session.post(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'AUTHORIZATION': 'Bearer %s' % util.get_access_token(),
                         'Content-Type': 'application/json'
                     }) as resp:
                 if resp.status == 404:
@@ -327,14 +327,10 @@ class GCloudBlobStore(object):
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
 
-    def _get_access_token(self):
+    def get_access_token(self):
         access_token = self._credentials.get_access_token()
         self._creation_access_token = datetime.now()
         return access_token.access_token
-
-    async def get_access_token(self):
-        root = get_utility(IApplication, name='root')
-        return await self._loop.run_in_executor(root.executor, self._get_access_token)
 
     def _get_or_create_bucket(self, bucket_name):
         client = google.cloud.storage.Client(
@@ -376,7 +372,7 @@ class GCloudBlobStore(object):
                 await self.get_bucket_name())
             async with session.get(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                        'AUTHORIZATION': 'Bearer %s' % self.get_access_token()
                     }, params={
                         'prefix': req._container_id + '/'
                     }) as resp:
@@ -391,7 +387,7 @@ class GCloudBlobStore(object):
             while page_token is not None:
                 async with session.get(
                         url, headers={
-                            'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                            'AUTHORIZATION': 'Bearer %s' % self.get_access_token()
                         }, params={
                             'prefix': req._container_id,
                             'pageToken': page_token

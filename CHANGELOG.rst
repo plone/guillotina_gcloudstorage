@@ -1,8 +1,7 @@
-2.0.1 (unreleased)
+2.0.1 (2018-11-05)
 ------------------
 
-- Nothing changed yet.
-
+- No need to run get_access_token in executor [lferran]
 
 2.0.0 (2018-06-07)
 ------------------

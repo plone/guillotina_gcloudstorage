@@ -333,8 +333,7 @@ class GCloudBlobStore(object):
         return access_token.access_token
 
     async def get_access_token(self):
-        root = get_utility(IApplication, name='root')
-        return await self._loop.run_in_executor(root.executor, self._get_access_token)
+        return self._get_access_token()
 
     def _get_or_create_bucket(self, bucket_name):
         client = google.cloud.storage.Client(

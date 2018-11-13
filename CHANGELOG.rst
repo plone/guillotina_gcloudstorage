@@ -1,7 +1,8 @@
 1.1.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- raise exception if get request on iter data fails
+  [lferran]
 
 
 1.1.7 (2018-06-07)

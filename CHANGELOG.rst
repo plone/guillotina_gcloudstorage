@@ -1,4 +1,4 @@
-1.1.8 (unreleased)
+1.1.8 (2018-11-13)
 ------------------
 
 - raise exception if get request on iter data fails

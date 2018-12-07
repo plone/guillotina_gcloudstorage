@@ -1,7 +1,9 @@
 1.1.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Use quote_plus when starting multi part upload. Fixes issues
+  with `+` in content ids not working.
+  [vangheem]
 
 
 1.1.7 (2018-06-07)

@@ -1,4 +1,4 @@
-1.1.9 (unreleased)
+1.1.9 (2018-12-07)
 ------------------
 
 - Use quote_plus when starting multi part upload. Fixes issues

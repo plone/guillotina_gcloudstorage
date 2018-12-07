@@ -458,3 +458,31 @@ async def test_upload_same_chunk_multiple_times(dummy_request):
                 },
                 data=b'X' * 100) as call:
             assert call.status == 200
+
+
+async def test_upload_works_with_plus_id(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    await _cleanup()
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(_test_gif),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+    request._payload = FakeContentReader()
+
+    parent = create_content(id='foobar')
+    ob = create_content(id='foo+bar@foobar.com', parent=parent)
+    ob.file = None
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
+    await mng.upload()
+    assert getattr(ob.file, 'upload_file_id', None) is None
+    assert ob.file.uri is not None
+
+    items = await get_all_objects()
+    assert len(items) == 1
+    assert items[0]['name'] == ob.file.uri

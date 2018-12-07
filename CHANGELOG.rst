@@ -1,12 +1,17 @@
 2.0.1 (2018-11-05)
 ------------------
 
-- No need to run get_access_token in executor [lferran]
+- Use quote_plus when starting multi part upload. Fixes issues
+  with `+` in content ids not working.
+
+- No need to run get_access_token in executor
+  [lferran]
 
 2.0.0 (2018-06-07)
 ------------------
 
 - Upgrade to guillotina 4
+  [vangheem]
   [vangheem]
 
 

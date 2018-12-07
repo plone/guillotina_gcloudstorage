@@ -139,7 +139,7 @@ class GCloudFileManager(object):
 
         init_url = '{}&name={}'.format(
             UPLOAD_URL.format(bucket=await util.get_bucket_name()),
-            upload_file_id)
+            quote_plus(upload_file_id))
 
         async with aiohttp.ClientSession() as session:
 

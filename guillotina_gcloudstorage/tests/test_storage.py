@@ -141,7 +141,7 @@ async def test_store_file_deletes_already_started(dummy_request):
         }
     }
 
-    request._payload = FakeContentReader()
+    request.content.seek(0)
     request._cache_data = b''
     request._last_read_pos = 0
 
@@ -232,7 +232,8 @@ async def test_copy(dummy_request):
     gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
     dm = DBDataManager(gmng)
     await dm.load()
-    new_gmng = GCloudFileManager(new_ob, request, IContent['file'].bind(new_ob))
+    new_gmng = GCloudFileManager(
+        new_ob, request, IContent['file'].bind(new_ob))
     new_dm = DBDataManager(new_gmng)
     await new_dm.load()
     await gmng.copy(new_gmng, new_dm)
@@ -259,8 +260,9 @@ async def test_iterate_storage(dummy_request):
         'X-UPLOAD-FILENAME': 'test.gif'
     })
 
+    request._payload = FakeContentReader()
     for _ in range(20):
-        request._payload = FakeContentReader()
+        request.content.seek(0)
         request._cache_data = b''
         request._last_read_pos = 0
         ob = create_content()
@@ -275,6 +277,10 @@ async def test_iterate_storage(dummy_request):
     assert count == 20
 
     await _cleanup()
+
+
+async def _async_fake_stub(*args, **kwargs):
+    pass
 
 
 async def test_download(dummy_request):
@@ -303,6 +309,10 @@ async def test_download(dummy_request):
     await mng.upload()
     assert ob.file.upload_file_id is None
     assert ob.file.uri is not None
+
+    # weird newest aiohttp bug for downloading in tests... mock writer
+    request._payload_writer.write_headers = _async_fake_stub
+    request._payload_writer.write = _async_fake_stub
 
     resp = await mng.download()
     assert resp.content_length == len(file_data)
@@ -353,7 +363,8 @@ async def test_upload_statuses(dummy_request):
         async with session.post(
                 init_url,
                 headers={
-                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token()),
                     'X-Upload-Content-Type': 'application/octet-stream',
                     'Content-Type': 'application/json; charset=UTF-8'
                 }) as call:
@@ -405,7 +416,8 @@ async def test_upload_same_chunk_multiple_times(dummy_request):
         async with session.post(
                 init_url,
                 headers={
-                    'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token()),
                     'X-Upload-Content-Type': 'application/octet-stream',
                     'Content-Type': 'application/json; charset=UTF-8'
                 }) as call:
@@ -486,3 +498,35 @@ async def test_upload_works_with_plus_id(dummy_request):
     items = await get_all_objects()
     assert len(items) == 1
     assert items[0]['name'] == ob.file.uri
+
+
+async def test_exists_works(dummy_request):
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    await _cleanup()
+
+    request.headers.update({
+        'Content-Type': 'image/gif',
+        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+        'X-UPLOAD-EXTENSION': 'gif',
+        'X-UPLOAD-SIZE': len(_test_gif),
+        'X-UPLOAD-FILENAME': 'test.gif'
+    })
+    request._payload = FakeContentReader()
+
+    ob = create_content()
+    ob.file = None
+    mng = FileManager(ob, request, IContent['file'].bind(ob))
+    await mng.upload()
+    assert getattr(ob.file, 'upload_file_id', None) is None
+    assert ob.file.uri is not None
+
+    assert(len(await get_all_objects()) == 1)
+    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
+    assert await gmng.exists()
+
+    await gmng.delete_upload(ob.file.uri)
+    assert len(await get_all_objects()) == 0
+
+    assert not await gmng.exists()

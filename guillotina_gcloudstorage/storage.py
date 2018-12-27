@@ -88,13 +88,15 @@ class GCloudFileManager(object):
 
     def should_clean(self, file):
         cleanup = IFileCleanup(self.context, None)
-        return cleanup is None or cleanup.should_clean(file=file, field=self.field)
+        return cleanup is None or cleanup.should_clean(
+            file=file, field=self.field)
 
     async def iter_data(self, uri=None):
         if uri is None:
             file = self.field.get(self.field.context or self.context)
             if not _is_uploaded_file(file):
-                raise FileNotFoundException('Trying to iterate data with no file')
+                raise FileNotFoundException(
+                    'Trying to iterate data with no file')
             else:
                 uri = file.uri
 
@@ -107,7 +109,8 @@ class GCloudFileManager(object):
             )
             async with session.get(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token())
                     }, params={
                         'alt': 'media'
                     }, timeout=-1) as api_resp:
@@ -154,7 +157,8 @@ class GCloudFileManager(object):
             async with session.post(
                     init_url,
                     headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token()),
                         'X-Upload-Content-Type': to_str(dm.content_type),
                         'X-Upload-Content-Length': str(dm.size),
                         'Content-Type': 'application/json; charset=UTF-8',
@@ -182,7 +186,8 @@ class GCloudFileManager(object):
                     quote_plus(uri))
                 async with session.delete(
                         url, headers={
-                            'AUTHORIZATION': 'Bearer %s' % await util.get_access_token()
+                            'AUTHORIZATION': 'Bearer {}'.format(
+                                await util.get_access_token())
                         }) as resp:
                     try:
                         data = await resp.json()
@@ -235,8 +240,9 @@ class GCloudFileManager(object):
                     # range header is the byte range google has received,
                     # which is different from the total size--off by one
                     raise HTTPPreconditionFailed(content={
-                        "reason": f'Guillotina and google cloud storage offsets do not match. '
-                                  f'Google: {range_header}, TUS(offset): {offset}'
+                        "reason": f'Guillotina and google cloud storage '
+                                  f'offsets do not match. Google: '
+                                  f'{range_header}, TUS(offset): {offset}'
                     })
             elif resp.status in [200, 201]:
                 # file manager will double check offsets and sizes match
@@ -256,6 +262,26 @@ class GCloudFileManager(object):
             uri=dm.get('upload_file_id'),
             upload_file_id=None
         )
+
+    async def exists(self):
+        file = self.field.get(self.field.context or self.context)
+        if not _is_uploaded_file(file):
+            raise HTTPNotFound(content={
+                "reason": 'No file found'
+            })
+        util = get_utility(IGCloudBlobStore)
+        async with aiohttp.ClientSession() as session:
+            url = '{}/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                await util.get_bucket_name(),
+                quote_plus(file.uri)
+            )
+            async with session.get(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token())
+                    }) as api_resp:
+                return api_resp.status == 200
 
     async def copy(self, to_storage_manager, to_dm):
         file = self.field.get(self.field.context or self.context)
@@ -277,12 +303,13 @@ class GCloudFileManager(object):
             )
             async with session.post(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await util.get_access_token(),
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token()),
                         'Content-Type': 'application/json'
                     }) as resp:
                 if resp.status == 404:
                     text = await resp.text()
-                    reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'
+                    reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'  # noqa
                     log.error(reason)
                     raise HTTPNotFound(content={
                         "reason": reason
@@ -351,7 +378,9 @@ class GCloudBlobStore(object):
             char_delimiter = '.'
         else:
             char_delimiter = '_'
-        bucket_name = request._container_id.lower() + char_delimiter + self._bucket_name
+        bucket_name = ''.join([
+            request._container_id.lower(),
+            char_delimiter, self._bucket_name])
         # we don't need to check every single time...
         if bucket_name in self._cached_buckets:
             return bucket_name
@@ -375,7 +404,8 @@ class GCloudBlobStore(object):
                 await self.get_bucket_name())
             async with session.get(
                     url, headers={
-                        'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await self.get_access_token())
                     }, params={
                         'prefix': req._container_id + '/'
                     }) as resp:
@@ -390,7 +420,8 @@ class GCloudBlobStore(object):
             while page_token is not None:
                 async with session.get(
                         url, headers={
-                            'AUTHORIZATION': 'Bearer %s' % await self.get_access_token()
+                            'AUTHORIZATION': 'Bearer {}'.format(
+                                await self.get_access_token())
                         }, params={
                             'prefix': req._container_id,
                             'pageToken': page_token

@@ -266,9 +266,7 @@ class GCloudFileManager(object):
     async def exists(self):
         file = self.field.get(self.field.context or self.context)
         if not _is_uploaded_file(file):
-            raise HTTPNotFound(content={
-                "reason": 'No file found'
-            })
+            return False
         util = get_utility(IGCloudBlobStore)
         async with aiohttp.ClientSession() as session:
             url = '{}/{}/o/{}'.format(

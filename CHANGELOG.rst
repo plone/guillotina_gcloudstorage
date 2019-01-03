@@ -1,7 +1,8 @@
 2.0.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Implement exists for head requests
+  [vangheem]
 
 
 2.0.1 (2018-12-07)

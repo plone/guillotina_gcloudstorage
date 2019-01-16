@@ -1,4 +1,4 @@
-2.0.3 (unreleased)
+2.0.3 (2019-01-15)
 ------------------
 
 - Raise 404 if object no longer available

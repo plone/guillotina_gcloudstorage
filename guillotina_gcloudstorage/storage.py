@@ -116,6 +116,11 @@ class GCloudFileManager(object):
                     }, timeout=-1) as api_resp:
                 if api_resp.status != 200:
                     text = await api_resp.text()
+                    if api_resp.status == 404:
+                        raise HTTPNotFound(content={
+                            "reason": 'Google cloud file not found',
+                            "response": text
+                        })
                     raise GoogleCloudException(text)
                 while True:
                     chunk = await api_resp.content.read(1024 * 1024)

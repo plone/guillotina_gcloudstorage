@@ -350,7 +350,6 @@ class GCloudBlobStore(object):
     def __init__(self, settings, loop=None):
         self._loop = loop
         self._json_credentials = settings['json_credentials']
-        self._project = settings['project'] if 'project' in settings else None
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
             self._json_credentials, SCOPES)
         self._bucket_name = settings['bucket']
@@ -366,8 +365,8 @@ class GCloudBlobStore(object):
         return self._get_access_token()
 
     def _get_or_create_bucket(self, bucket_name):
-        client = google.cloud.storage.Client(
-            project=self._project, credentials=self._credentials)
+        client = google.cloud.storage.Client.from_service_account_json(
+            self._json_credentials)
         try:
             bucket = client.get_bucket(bucket_name)  # noqa
         except google.cloud.exceptions.NotFound:

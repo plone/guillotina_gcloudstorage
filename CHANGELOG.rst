@@ -1,7 +1,7 @@
 2.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Credentials compatiblity [bloodbare]
 
 
 2.0.3 (2019-01-15)

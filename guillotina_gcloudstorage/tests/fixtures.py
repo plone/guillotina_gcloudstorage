@@ -14,7 +14,6 @@ def base_settings_configurator(settings):
         "settings": {
             "json_credentials": os.environ['GCLOUD_CREDENTIALS'],
             "bucket": os.environ['GCLOUD_BUCKET'],
-            "project": os.environ['GCLOUD_PROJECT']
         }
     }
 

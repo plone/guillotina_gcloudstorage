@@ -18,6 +18,7 @@ from zope.interface import Interface
 
 import aiohttp
 import base64
+import google.cloud.storage
 import pytest
 
 
@@ -530,3 +531,16 @@ async def test_exists_works(dummy_request):
     assert len(await get_all_objects()) == 0
 
     assert not await gmng.exists()
+
+
+async def test_custom_bucket_name(dummy_request):
+    util = get_utility(IGCloudBlobStore)
+    request = dummy_request  # noqa
+    login(request)
+    request._container_id = 'test-container'
+    # make sure util gets and configures bucket
+    bucket_name = await util.get_bucket_name()
+    client = google.cloud.storage.Client(
+        project=util._project, credentials=util._credentials)
+    client.get_bucket(bucket_name)
+    assert bucket_name.startswith('test-container-foobar')

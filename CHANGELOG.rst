@@ -1,7 +1,8 @@
 2.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Add `bucket_name_format` and `bucket_labels` settings
+  [vangheem]
 
 
 2.0.4 (2019-01-17)

@@ -353,6 +353,9 @@ class GCloudBlobStore(object):
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
             self._json_credentials, SCOPES)
         self._bucket_name = settings['bucket']
+        self._bucket_name_format = settings.get(
+            'bucket_name_format', '{container}{delimiter}{base}')
+        self._bucket_labels = settings.get('bucket_labels') or {}
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
 
@@ -364,14 +367,28 @@ class GCloudBlobStore(object):
     async def get_access_token(self):
         return self._get_access_token()
 
-    def _get_or_create_bucket(self, bucket_name):
+    def _get_or_create_bucket(self, request, bucket_name):
         client = google.cloud.storage.Client.from_service_account_json(
             self._json_credentials)
         try:
-            bucket = client.get_bucket(bucket_name)  # noqa
+            bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
             bucket = client.create_bucket(bucket_name)
-            log.warn('We needed to create bucket ' + bucket_name)
+            log.warning('We needed to create bucket ' + bucket_name)
+
+        try:
+            labels = bucket.labels
+        except AttributeError:
+            labels = {}
+        labels['container'] = request._container_id.lower()
+        labels.update(self._bucket_labels)
+        bucket.labels = labels
+        try:
+            bucket.patch()
+        except google.cloud.exceptions.Forbidden:
+            log.warning(
+                'Insufficient permission to update bucket labels: {}'.format(
+                    bucket_name))
         return bucket
 
     async def get_bucket_name(self):
@@ -380,16 +397,19 @@ class GCloudBlobStore(object):
             char_delimiter = '.'
         else:
             char_delimiter = '_'
-        bucket_name = ''.join([
-            request._container_id.lower(),
-            char_delimiter, self._bucket_name])
+
+        bucket_name = self._bucket_name_format.format(
+            container=request._container_id.lower(),
+            delimiter=char_delimiter,
+            base=self._bucket_name)
+
         # we don't need to check every single time...
         if bucket_name in self._cached_buckets:
             return bucket_name
 
         root = get_utility(IApplication, name='root')
         await self._loop.run_in_executor(
-            root.executor, self._get_or_create_bucket, bucket_name)
+            root.executor, self._get_or_create_bucket, request, bucket_name)
 
         self._cached_buckets.append(bucket_name)
         return bucket_name

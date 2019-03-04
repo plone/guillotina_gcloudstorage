@@ -29,6 +29,7 @@ import google.cloud.exceptions
 import google.cloud.storage
 import json
 import logging
+import os
 
 
 class IGCloudFileStorageManager(IFileStorageManager):
@@ -376,20 +377,54 @@ class GCloudBlobStore(object):
             bucket = client.create_bucket(bucket_name)
             log.warning('We needed to create bucket ' + bucket_name)
 
-        try:
-            labels = bucket.labels
-        except AttributeError:
-            labels = {}
-        labels['container'] = request._container_id.lower()
-        labels.update(self._bucket_labels)
-        bucket.labels = labels
-        try:
-            bucket.patch()
-        except google.cloud.exceptions.Forbidden:
-            log.warning(
-                'Insufficient permission to update bucket labels: {}'.format(
-                    bucket_name))
         return bucket
+
+    def get_bucket_url(self, bucket):
+        return '{}/{}'.format(OBJECT_BASE_URL, bucket.name)
+
+    async def get_bucket_labels(self, bucket):
+        async with aiohttp.ClientSession() as session:
+            url = self.get_bucket_url(bucket)
+            async with session.get(
+                    url,
+                    params={'fields': 'labels'},
+                    headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await self.get_access_token())
+                    }) as resp:
+                if resp.status != 200:
+                    log.warning(
+                        'Could not update labels for bucket: {}: {}'.format(
+                            bucket.name, await resp.text()
+                        ))
+                    return
+                data = await resp.json()
+                if 'labels' in data:
+                    return data['labels']
+                else:
+                    return {}
+
+    async def update_bucket_labels(self, bucket, request):
+        # get existing labels
+        async with aiohttp.ClientSession() as session:
+            url = self.get_bucket_url(bucket)
+            labels = await self.get_bucket_labels(bucket)
+            labels['container'] = request._container_id.lower()
+            labels.update(self._bucket_labels)
+            async with session.patch(
+                    url,
+                    params={'fields': 'labels'},
+                    headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await self.get_access_token())
+                    }, json={
+                        'labels': labels
+                    }) as resp:
+                if resp.status != 200:
+                    log.warning(
+                        'Could not update labels for bucket: {}: {}'.format(
+                            bucket.name, await resp.text()
+                        ))
 
     async def get_bucket_name(self):
         request = get_current_request()
@@ -408,10 +443,13 @@ class GCloudBlobStore(object):
             return bucket_name
 
         root = get_utility(IApplication, name='root')
-        await self._loop.run_in_executor(
+        bucket = await self._loop.run_in_executor(
             root.executor, self._get_or_create_bucket, request, bucket_name)
 
         self._cached_buckets.append(bucket_name)
+
+        await self.update_bucket_labels(bucket, request)
+
         return bucket_name
 
     async def initialize(self, app=None):

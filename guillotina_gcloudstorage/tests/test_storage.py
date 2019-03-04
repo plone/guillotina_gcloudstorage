@@ -542,5 +542,7 @@ async def test_custom_bucket_name(dummy_request):
     bucket_name = await util.get_bucket_name()
     client = google.cloud.storage.Client.from_service_account_json(
         util._json_credentials)
-    client.get_bucket(bucket_name)
+    bk = client.get_bucket(bucket_name)
+    labels = await util.get_bucket_labels(bk)
+    assert 'container' in labels
     assert bucket_name.startswith('test-container-foobar')

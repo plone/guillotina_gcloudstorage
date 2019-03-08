@@ -1,4 +1,4 @@
-2.0.5 (unreleased)
+2.0.5 (2019-03-08)
 ------------------
 
 - Add `bucket_name_format` and `bucket_labels` settings

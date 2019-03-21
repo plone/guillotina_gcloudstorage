@@ -1,7 +1,7 @@
 2.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Adding location parameter [bloodbare]
 
 
 2.0.4 (2019-01-17)

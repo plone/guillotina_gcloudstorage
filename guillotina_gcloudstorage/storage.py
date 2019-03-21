@@ -353,6 +353,9 @@ class GCloudBlobStore(object):
         self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
             self._json_credentials, SCOPES)
         self._bucket_name = settings['bucket']
+        self._location = settings.get('location', None)
+        self._project = settings.get('project', None)
+        # https://cloud.google.com/storage/docs/bucket-locations
         self._bucket_name_format = settings.get(
             'bucket_name_format', '{container}{delimiter}{base}')
         self._bucket_labels = settings.get('bucket_labels') or {}
@@ -373,8 +376,12 @@ class GCloudBlobStore(object):
         try:
             bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
-            bucket = client.create_bucket(bucket_name)
-            log.warning('We needed to create bucket ' + bucket_name)
+            bucket = google.cloud.storage.Bucket(self, name=bucket_name)
+            bucket.create_bucket(
+                client=client,
+                project=self._project,
+                location=self._location)
+            log.warn('We needed to create bucket ' + bucket_name)
 
         try:
             labels = bucket.labels

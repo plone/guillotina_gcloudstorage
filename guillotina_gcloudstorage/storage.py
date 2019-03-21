@@ -416,11 +416,7 @@ class GCloudBlobStore(object):
 
         root = get_utility(IApplication, name='root')
         await self._loop.run_in_executor(
-            root.executor, self.
-          
-          
-          
-          , request, bucket_name)
+            root.executor, self._get_or_create_bucket, request, bucket_name)
 
         self._cached_buckets.append(bucket_name)
         return bucket_name

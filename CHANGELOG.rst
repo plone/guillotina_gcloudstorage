@@ -1,7 +1,14 @@
-2.0.5 (unreleased)
+2.0.6 (unreleased)
 ------------------
 
 - Adding location parameter [bloodbare]
+
+
+2.0.5 (2019-03-08)
+------------------
+
+- Add `bucket_name_format` and `bucket_labels` settings
+  [vangheem]
 
 
 2.0.4 (2019-01-17)

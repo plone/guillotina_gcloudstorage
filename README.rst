@@ -16,7 +16,11 @@ Example config.json entry:
             "factory": "guillotina_gcloudstorage.storage.GCloudBlobStore",
             "settings": {
                 "json_credentials": "/path/to/credentials.json",
-                "bucket": "name-of-bucket"
+                "bucket": "name-of-bucket",
+                "bucket_name_format": "{container}-foobar{delimiter}{base}",
+                "bucket_labels": {
+                    "foo": "bar"
+                }
             }
         }
     }

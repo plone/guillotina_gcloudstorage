@@ -1,7 +1,8 @@
 2.0.7 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Add `get_client` and `_create_bucket` methods to `GCloudBlobStore`
+  [vangheem]
 
 
 2.0.6 (2019-03-21)

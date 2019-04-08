@@ -24,6 +24,7 @@ from urllib.parse import quote_plus
 from zope.interface import implementer
 
 import aiohttp
+import asyncio
 import backoff
 import google.cloud.exceptions
 import google.cloud.storage
@@ -422,7 +423,8 @@ class GCloudBlobStore(object):
             return bucket_name
 
         root = get_utility(IApplication, name='root')
-        await self._loop.run_in_executor(
+        loop = self._loop or asyncio.get_event_loop()
+        await loop.run_in_executor(
             root.executor, self._get_or_create_bucket, request, bucket_name)
 
         self._cached_buckets.append(bucket_name)

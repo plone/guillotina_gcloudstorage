@@ -24,6 +24,7 @@ from urllib.parse import quote_plus
 from zope.interface import implementer
 
 import aiohttp
+import asyncio
 import backoff
 import google.cloud.exceptions
 import google.cloud.storage
@@ -361,6 +362,7 @@ class GCloudBlobStore(object):
         self._bucket_labels = settings.get('bucket_labels') or {}
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
+        self._client = None
 
     def _get_access_token(self):
         access_token = self._credentials.get_access_token()
@@ -370,18 +372,27 @@ class GCloudBlobStore(object):
     async def get_access_token(self):
         return self._get_access_token()
 
+    def get_client(self):
+        if self._client is None:
+            self._client = google.cloud.storage.Client.from_service_account_json(  # noqa
+                self._json_credentials)
+        return self._client
+
+    def _create_bucket(self, bucket_name):
+        bucket = google.cloud.storage.Bucket(self, name=bucket_name)
+        bucket.create_bucket(
+            client=self.get_client(),
+            project=self._project,
+            location=self._location)
+        return bucket
+
     def _get_or_create_bucket(self, request, bucket_name):
-        client = google.cloud.storage.Client.from_service_account_json(
-            self._json_credentials)
+        client = self.get_client()
         try:
             bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
-            bucket = google.cloud.storage.Bucket(self, name=bucket_name)
-            bucket.create_bucket(
-                client=client,
-                project=self._project,
-                location=self._location)
-            log.warn('We needed to create bucket ' + bucket_name)
+            bucket = self._create_bucket(bucket_name)
+            log.warning('We needed to create bucket ' + bucket_name)
 
         try:
             labels = bucket.labels
@@ -415,7 +426,8 @@ class GCloudBlobStore(object):
             return bucket_name
 
         root = get_utility(IApplication, name='root')
-        await self._loop.run_in_executor(
+        loop = self._loop or asyncio.get_event_loop()
+        await loop.run_in_executor(
             root.executor, self._get_or_create_bucket, request, bucket_name)
 
         self._cached_buckets.append(bucket_name)

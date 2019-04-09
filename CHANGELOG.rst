@@ -1,4 +1,4 @@
-2.0.7 (unreleased)
+2.0.7 (2019-04-09)
 ------------------
 
 - Add `get_client` and `_create_bucket` methods to `GCloudBlobStore`

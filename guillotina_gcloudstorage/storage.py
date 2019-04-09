@@ -362,6 +362,7 @@ class GCloudBlobStore(object):
         self._bucket_labels = settings.get('bucket_labels') or {}
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
+        self._client = None
 
     def _get_access_token(self):
         access_token = self._credentials.get_access_token()
@@ -372,13 +373,15 @@ class GCloudBlobStore(object):
         return self._get_access_token()
 
     def get_client(self):
-        return google.cloud.storage.Client.from_service_account_json(
-            self._json_credentials)
+        if self._client is None:
+            self._client = google.cloud.storage.Client.from_service_account_json(  # noqa
+                self._json_credentials)
+        return self._client
 
-    def _create_bucket(self, client, bucket_name):
+    def _create_bucket(self, bucket_name):
         bucket = google.cloud.storage.Bucket(self, name=bucket_name)
         bucket.create_bucket(
-            client=client,
+            client=self.get_client(),
             project=self._project,
             location=self._location)
         return bucket
@@ -388,7 +391,7 @@ class GCloudBlobStore(object):
         try:
             bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
-            bucket = self._create_bucket()
+            bucket = self._create_bucket(bucket_name)
             log.warning('We needed to create bucket ' + bucket_name)
 
         try:

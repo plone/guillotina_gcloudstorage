@@ -379,9 +379,10 @@ class GCloudBlobStore(object):
         return self._client
 
     def _create_bucket(self, bucket_name):
-        bucket = google.cloud.storage.Bucket(self, name=bucket_name)
-        bucket.create_bucket(
-            client=self.get_client(),
+        client = self.get_client()
+        bucket = google.cloud.storage.Bucket(client, name=bucket_name)
+        bucket.create(
+            client=client,
             project=self._project,
             location=self._location)
         return bucket

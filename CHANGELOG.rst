@@ -1,7 +1,8 @@
 2.0.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix bug creating buckets
+  [vangheem]
 
 
 2.0.7 (2019-04-09)

@@ -1,4 +1,4 @@
-2.0.8 (unreleased)
+2.0.8 (2019-04-12)
 ------------------
 
 - Fix bug creating buckets

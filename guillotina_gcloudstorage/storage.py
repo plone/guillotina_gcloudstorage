@@ -381,10 +381,14 @@ class GCloudBlobStore(object):
     def _create_bucket(self, bucket_name):
         client = self.get_client()
         bucket = google.cloud.storage.Bucket(client, name=bucket_name)
-        bucket.create(
-            client=client,
-            project=self._project,
-            location=self._location)
+        try:
+            bucket.create(
+                client=client,
+                project=self._project,
+                location=self._location)
+        except TypeError:
+            # work with more versions of google storage api
+            bucket.create(client=client)
         return bucket
 
     def _get_or_create_bucket(self, request, bucket_name):

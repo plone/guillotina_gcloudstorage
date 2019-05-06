@@ -1,7 +1,8 @@
 2.0.9 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix creating buckets with different versions of google cloud storage
+  [vangheem]
 
 
 2.0.8 (2019-04-12)

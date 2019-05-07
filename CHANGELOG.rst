@@ -1,4 +1,4 @@
-2.0.9 (unreleased)
+2.0.9 (2019-05-07)
 ------------------
 
 - Fix creating buckets with different versions of google cloud storage

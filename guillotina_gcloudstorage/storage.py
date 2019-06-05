@@ -102,33 +102,32 @@ class GCloudFileManager(object):
                 uri = file.uri
 
         util = get_utility(IGCloudBlobStore)
-        async with aiohttp.ClientSession() as session:
-            url = '{}/{}/o/{}'.format(
-                OBJECT_BASE_URL,
-                await util.get_bucket_name(),
-                quote_plus(uri)
-            )
-            async with session.get(
-                    url, headers={
-                        'AUTHORIZATION': 'Bearer {}'.format(
-                            await util.get_access_token())
-                    }, params={
-                        'alt': 'media'
-                    }, timeout=-1) as api_resp:
-                if api_resp.status != 200:
-                    text = await api_resp.text()
-                    if api_resp.status == 404:
-                        raise HTTPNotFound(content={
-                            "reason": 'Google cloud file not found',
-                            "response": text
-                        })
-                    raise GoogleCloudException(text)
-                while True:
-                    chunk = await api_resp.content.read(1024 * 1024)
-                    if len(chunk) > 0:
-                        yield chunk
-                    else:
-                        break
+        url = '{}/{}/o/{}'.format(
+            OBJECT_BASE_URL,
+            await util.get_bucket_name(),
+            quote_plus(uri)
+        )
+        async with util.session.get(
+                url, headers={
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token())
+                }, params={
+                    'alt': 'media'
+                }, timeout=-1) as api_resp:
+            if api_resp.status != 200:
+                text = await api_resp.text()
+                if api_resp.status == 404:
+                    raise HTTPNotFound(content={
+                        "reason": 'Google cloud file not found',
+                        "response": text
+                    })
+                raise GoogleCloudException(text)
+            while True:
+                chunk = await api_resp.content.read(1024 * 1024)
+                if len(chunk) > 0:
+                    yield chunk
+                else:
+                    break
 
     @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def start(self, dm):
@@ -150,60 +149,57 @@ class GCloudFileManager(object):
             UPLOAD_URL.format(bucket=await util.get_bucket_name()),
             quote_plus(upload_file_id))
 
-        async with aiohttp.ClientSession() as session:
+        creator = ','.join([x.principal.id for x
+                            in request.security.participations])
+        metadata = json.dumps({
+            'CREATOR': creator,
+            'REQUEST': str(request),
+            'NAME': dm.get('filename')
+        })
+        call_size = len(metadata)
+        async with util.session.post(
+                init_url,
+                headers={
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token()),
+                    'X-Upload-Content-Type': to_str(dm.content_type),
+                    'X-Upload-Content-Length': str(dm.size),
+                    'Content-Type': 'application/json; charset=UTF-8',
+                    'Content-Length': str(call_size)
+                },
+                data=metadata) as call:
+            if call.status != 200:
+                text = await call.text()
+                raise GoogleCloudException(text)
+            resumable_uri = call.headers['Location']
 
-            creator = ','.join([x.principal.id for x
-                                in request.security.participations])
-            metadata = json.dumps({
-                'CREATOR': creator,
-                'REQUEST': str(request),
-                'NAME': dm.get('filename')
-            })
-            call_size = len(metadata)
-            async with session.post(
-                    init_url,
-                    headers={
-                        'AUTHORIZATION': 'Bearer {}'.format(
-                            await util.get_access_token()),
-                        'X-Upload-Content-Type': to_str(dm.content_type),
-                        'X-Upload-Content-Length': str(dm.size),
-                        'Content-Type': 'application/json; charset=UTF-8',
-                        'Content-Length': str(call_size)
-                    },
-                    data=metadata) as call:
-                if call.status != 200:
-                    text = await call.text()
-                    raise GoogleCloudException(text)
-                resumable_uri = call.headers['Location']
-
-            await dm.update(
-                current_upload=0,
-                resumable_uri=resumable_uri,
-                upload_file_id=upload_file_id
-            )
+        await dm.update(
+            current_upload=0,
+            resumable_uri=resumable_uri,
+            upload_file_id=upload_file_id
+        )
 
     async def delete_upload(self, uri):
         util = get_utility(IGCloudBlobStore)
         if uri is not None:
-            async with aiohttp.ClientSession() as session:
-                url = '{}/{}/o/{}'.format(
-                    OBJECT_BASE_URL,
-                    await util.get_bucket_name(),
-                    quote_plus(uri))
-                async with session.delete(
-                        url, headers={
-                            'AUTHORIZATION': 'Bearer {}'.format(
-                                await util.get_access_token())
-                        }) as resp:
-                    try:
-                        data = await resp.json()
-                    except Exception:
-                        data = {}
-                        text = await resp.text()
-                        log.error(f'Unknown error from google cloud: {text}, '
-                                  f'status: {resp.status}')
-                    if resp.status not in (200, 204, 404):
-                        raise GoogleCloudException(json.dumps(data))
+            url = '{}/{}/o/{}'.format(
+                OBJECT_BASE_URL,
+                await util.get_bucket_name(),
+                quote_plus(uri))
+            async with util.session.delete(
+                    url, headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token())
+                    }) as resp:
+                try:
+                    data = await resp.json()
+                except Exception:
+                    data = {}
+                    text = await resp.text()
+                    log.error(f'Unknown error from google cloud: {text}, '
+                              f'status: {resp.status}')
+                if resp.status not in (200, 204, 404):
+                    raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
 
@@ -213,23 +209,23 @@ class GCloudFileManager(object):
         else:
             # assuming size will come eventually
             size = '*'
-        async with aiohttp.ClientSession() as session:
-            content_range = 'bytes {init}-{chunk}/{total}'.format(
-                init=offset,
-                chunk=offset + len(data) - 1,
-                total=size)
-            async with session.put(
-                    dm.get('resumable_uri'),
-                    headers={
-                        'Content-Length': str(len(data)),
-                        'Content-Type': to_str(dm.content_type),
-                        'Content-Range': content_range
-                    },
-                    data=data) as call:
-                text = await call.text()  # noqa
-                if call.status not in [200, 201, 308]:
-                    log.error(text)
-                return call
+        content_range = 'bytes {init}-{chunk}/{total}'.format(
+            init=offset,
+            chunk=offset + len(data) - 1,
+            total=size)
+        util = get_utility(IGCloudBlobStore)
+        async with util.session.put(
+                dm.get('resumable_uri'),
+                headers={
+                    'Content-Length': str(len(data)),
+                    'Content-Type': to_str(dm.content_type),
+                    'Content-Range': content_range
+                },
+                data=data) as call:
+            text = await call.text()  # noqa
+            if call.status not in [200, 201, 308]:
+                log.error(text)
+            return call
 
     async def append(self, dm, iterable, offset) -> int:
         count = 0
@@ -274,18 +270,17 @@ class GCloudFileManager(object):
         if not _is_uploaded_file(file):
             return False
         util = get_utility(IGCloudBlobStore)
-        async with aiohttp.ClientSession() as session:
-            url = '{}/{}/o/{}'.format(
-                OBJECT_BASE_URL,
-                await util.get_bucket_name(),
-                quote_plus(file.uri)
-            )
-            async with session.get(
-                    url, headers={
-                        'AUTHORIZATION': 'Bearer {}'.format(
-                            await util.get_access_token())
-                    }) as api_resp:
-                return api_resp.status == 200
+        url = '{}/{}/o/{}'.format(
+            OBJECT_BASE_URL,
+            await util.get_bucket_name(),
+            quote_plus(file.uri)
+        )
+        async with util.session.get(
+                url, headers={
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token())
+                }) as api_resp:
+            return api_resp.status == 200
 
     async def copy(self, to_storage_manager, to_dm):
         file = self.field.get(self.field.context or self.context)
@@ -296,39 +291,38 @@ class GCloudFileManager(object):
         new_uri = generate_key(self.request, self.context)
 
         util = get_utility(IGCloudBlobStore)
-        async with aiohttp.ClientSession() as session:
-            bucket_name = await util.get_bucket_name()
-            url = '{}/{}/o/{}/copyTo/b/{}/o/{}'.format(
-                OBJECT_BASE_URL,
-                bucket_name,
-                quote_plus(file.uri),
-                bucket_name,
-                quote_plus(new_uri)
-            )
-            async with session.post(
-                    url, headers={
-                        'AUTHORIZATION': 'Bearer {}'.format(
-                            await util.get_access_token()),
-                        'Content-Type': 'application/json'
-                    }) as resp:
-                if resp.status == 404:
-                    text = await resp.text()
-                    reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'  # noqa
-                    log.error(reason)
-                    raise HTTPNotFound(content={
-                        "reason": reason
-                    })
-                else:
-                    data = await resp.json()
-                    assert data['name'] == new_uri
-                    await to_dm.finish(
-                        values={
-                            'content_type': data['contentType'],
-                            'size': int(data['size']),
-                            'uri': new_uri,
-                            'filename': file.filename or 'unknown'
-                        }
-                    )
+        bucket_name = await util.get_bucket_name()
+        url = '{}/{}/o/{}/copyTo/b/{}/o/{}'.format(
+            OBJECT_BASE_URL,
+            bucket_name,
+            quote_plus(file.uri),
+            bucket_name,
+            quote_plus(new_uri)
+        )
+        async with util.session.post(
+                url, headers={
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await util.get_access_token()),
+                    'Content-Type': 'application/json'
+                }) as resp:
+            if resp.status == 404:
+                text = await resp.text()
+                reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'  # noqa
+                log.error(reason)
+                raise HTTPNotFound(content={
+                    "reason": reason
+                })
+            else:
+                data = await resp.json()
+                assert data['name'] == new_uri
+                await to_dm.finish(
+                    values={
+                        'content_type': data['contentType'],
+                        'size': int(data['size']),
+                        'uri': new_uri,
+                        'filename': file.filename or 'unknown'
+                    }
+                )
 
 
 @implementer(IGCloudFileField)
@@ -363,6 +357,13 @@ class GCloudBlobStore(object):
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
         self._client = None
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     def _get_access_token(self):
         access_token = self._credentials.get_access_token()
@@ -444,38 +445,37 @@ class GCloudBlobStore(object):
 
     async def iterate_bucket(self):
         req = get_current_request()
-        async with aiohttp.ClientSession() as session:
-            url = '{}/{}/o'.format(
-                OBJECT_BASE_URL,
-                await self.get_bucket_name())
-            async with session.get(
+        url = '{}/{}/o'.format(
+            OBJECT_BASE_URL,
+            await self.get_bucket_name())
+        async with self.session.get(
+                url, headers={
+                    'AUTHORIZATION': 'Bearer {}'.format(
+                        await self.get_access_token())
+                }, params={
+                    'prefix': req._container_id + '/'
+                }) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            if 'items' not in data:
+                return
+            for item in data['items']:
+                yield item
+
+        page_token = data.get('nextPageToken')
+        while page_token is not None:
+            async with self.session.get(
                     url, headers={
                         'AUTHORIZATION': 'Bearer {}'.format(
                             await self.get_access_token())
                     }, params={
-                        'prefix': req._container_id + '/'
+                        'prefix': req._container_id,
+                        'pageToken': page_token
                     }) as resp:
-                assert resp.status == 200
                 data = await resp.json()
-                if 'items' not in data:
-                    return
-                for item in data['items']:
+                items = data.get('items', [])
+                if len(items) == 0:
+                    break
+                for item in items:
                     yield item
-
-            page_token = data.get('nextPageToken')
-            while page_token is not None:
-                async with session.get(
-                        url, headers={
-                            'AUTHORIZATION': 'Bearer {}'.format(
-                                await self.get_access_token())
-                        }, params={
-                            'prefix': req._container_id,
-                            'pageToken': page_token
-                        }) as resp:
-                    data = await resp.json()
-                    items = data.get('items', [])
-                    if len(items) == 0:
-                        break
-                    for item in items:
-                        yield item
-                    page_token = data.get('nextPageToken')
+                page_token = data.get('nextPageToken')

@@ -1,4 +1,4 @@
-2.0.10 (unreleased)
+2.0.10 (2019-06-06)
 -------------------
 
 - Reuse aiohttp client session

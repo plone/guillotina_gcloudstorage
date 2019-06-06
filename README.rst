@@ -1,12 +1,10 @@
-.. contents::
-
 GUILLOTINA_GCLOUDSTORAGE
 ========================
 
 GCloud blob storage for guillotina.
 
 
-Example config.json entry:
+Example config.json entry::
 
     ...
     "cloud_storage": "guillotina_gcloudstorage.interfaces.IGCloudFileField",

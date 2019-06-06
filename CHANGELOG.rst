@@ -1,7 +1,8 @@
 2.0.10 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Reuse aiohttp client session
+  [vangheem]
 
 
 2.0.9 (2019-05-07)

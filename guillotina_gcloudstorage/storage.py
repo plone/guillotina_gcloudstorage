@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from guillotina import configure
+from guillotina import task_vars
 from guillotina.component import get_utility
 from guillotina.exceptions import FileNotFoundException
 from guillotina.files import BaseCloudFile
 from guillotina.files.utils import generate_key
 from guillotina.interfaces import IApplication
+from guillotina.interfaces import IExternalFileStorageManager
 from guillotina.interfaces import IFileCleanup
-from guillotina.interfaces import IFileStorageManager
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
 from guillotina.interfaces import IResource
 from guillotina.response import HTTPNotFound
 from guillotina.response import HTTPPreconditionFailed
 from guillotina.schema import Object
+from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
 from guillotina.utils import to_str
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
@@ -32,7 +34,7 @@ import json
 import logging
 
 
-class IGCloudFileStorageManager(IFileStorageManager):
+class IGCloudFileStorageManager(IExternalFileStorageManager):
     pass
 
 
@@ -143,14 +145,13 @@ class GCloudFileManager(object):
         if upload_file_id is not None:
             await self.delete_upload(upload_file_id)
 
-        upload_file_id = generate_key(request, self.context)
+        upload_file_id = generate_key(self.context)
 
         init_url = '{}&name={}'.format(
             UPLOAD_URL.format(bucket=await util.get_bucket_name()),
             quote_plus(upload_file_id))
 
-        creator = ','.join([x.principal.id for x
-                            in request.security.participations])
+        creator = get_authenticated_user_id()
         metadata = json.dumps({
             'CREATOR': creator,
             'REQUEST': str(request),
@@ -288,7 +289,7 @@ class GCloudFileManager(object):
             raise HTTPNotFound(content={
                 "reason": 'To copy a uri must be set on the object'
             })
-        new_uri = generate_key(self.request, self.context)
+        new_uri = generate_key(self.context)
 
         util = get_utility(IGCloudBlobStore)
         bucket_name = await util.get_bucket_name()
@@ -392,7 +393,7 @@ class GCloudBlobStore(object):
             bucket.create(client=client)
         return bucket
 
-    def _get_or_create_bucket(self, request, bucket_name):
+    def _get_or_create_bucket(self, container, bucket_name):
         client = self.get_client()
         try:
             bucket = client.get_bucket(bucket_name)
@@ -404,7 +405,8 @@ class GCloudBlobStore(object):
             labels = bucket.labels
         except AttributeError:
             labels = {}
-        labels['container'] = request._container_id.lower()
+
+        labels['container'] = container.id.lower()
         labels.update(self._bucket_labels)
         bucket.labels = labels
         try:
@@ -416,14 +418,14 @@ class GCloudBlobStore(object):
         return bucket
 
     async def get_bucket_name(self):
-        request = get_current_request()
         if '.' in self._bucket_name:
             char_delimiter = '.'
         else:
             char_delimiter = '_'
 
+        container = task_vars.container.get()
         bucket_name = self._bucket_name_format.format(
-            container=request._container_id.lower(),
+            container=container.id.lower(),
             delimiter=char_delimiter,
             base=self._bucket_name)
 
@@ -434,7 +436,7 @@ class GCloudBlobStore(object):
         root = get_utility(IApplication, name='root')
         loop = self._loop or asyncio.get_event_loop()
         await loop.run_in_executor(
-            root.executor, self._get_or_create_bucket, request, bucket_name)
+            root.executor, self._get_or_create_bucket, container, bucket_name)
 
         self._cached_buckets.append(bucket_name)
         return bucket_name
@@ -444,16 +446,16 @@ class GCloudBlobStore(object):
         self.app = app
 
     async def iterate_bucket(self):
-        req = get_current_request()
         url = '{}/{}/o'.format(
             OBJECT_BASE_URL,
             await self.get_bucket_name())
+        container = task_vars.container.get()
         async with self.session.get(
                 url, headers={
                     'AUTHORIZATION': 'Bearer {}'.format(
                         await self.get_access_token())
                 }, params={
-                    'prefix': req._container_id + '/'
+                    'prefix': container.id + '/'
                 }) as resp:
             assert resp.status == 200
             data = await resp.json()
@@ -469,7 +471,7 @@ class GCloudBlobStore(object):
                         'AUTHORIZATION': 'Bearer {}'.format(
                             await self.get_access_token())
                     }, params={
-                        'prefix': req._container_id,
+                        'prefix': container.id,
                         'pageToken': page_token
                     }) as resp:
                 data = await resp.json()

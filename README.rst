@@ -8,6 +8,7 @@ Example config.json entry::
 
     ...
     "cloud_storage": "guillotina_gcloudstorage.interfaces.IGCloudFileField",
+    "cloud_datamanager": "redis",
     "load_utilities": {
         "gcloud": {
             "provides": "guillotina_gcloudstorage.interfaces.IGCloudBlobStore",

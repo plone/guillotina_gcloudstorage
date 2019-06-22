@@ -2,6 +2,12 @@
 from setuptools import find_packages
 from setuptools import setup
 
+test_reqs = [
+    'pytest',
+    'pytest-docker-fixtures',
+    'pytest-aiohttp>=0.3.0'
+]
+
 
 setup(
     name='guillotina_gcloudstorage',
@@ -10,7 +16,7 @@ setup(
     long_description=(open('README.rst').read() + '\n' +
                       open('CHANGELOG.rst').read()),
     classifiers=[
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     author='Ramon Navarro Bosch',
@@ -27,7 +33,7 @@ setup(
     packages=find_packages(exclude=['ez_setup']),
     install_requires=[
         'setuptools',
-        'guillotina>=4.0.0<5',
+        'guillotina>=5.0.0a7',
         'protobuf',
         'oauth2client',
         'google-cloud-storage',
@@ -35,9 +41,10 @@ setup(
         'ujson',
         'backoff'
     ],
-    tests_require=[
-        'pytest',
-    ],
+    extras_require={
+        'test': test_reqs
+    },
+    tests_require=test_reqs,
     entry_points={
         'guillotina': [
             'include = guillotina_gcloudstorage',

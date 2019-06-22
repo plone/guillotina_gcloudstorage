@@ -1,4 +1,6 @@
+from guillotina import task_vars
 from guillotina.component import get_utility
+from guillotina.content import Container
 from guillotina.exceptions import UnRetryableRequestError
 from guillotina.files import FileManager
 from guillotina.files import MAX_REQUEST_CACHE_SIZE
@@ -45,11 +47,12 @@ class IContent(Interface):
 
 
 async def test_get_storage_object(dummy_request):
-    request = dummy_request  # noqa
-    request._container_id = 'test-container'
-    util = get_utility(IGCloudBlobStore)
-    assert await util.get_access_token() is not None
-    assert await util.get_bucket_name() is not None
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        util = get_utility(IGCloudBlobStore)
+        assert await util.get_access_token() is not None
+        assert await util.get_bucket_name() is not None
 
 
 async def _cleanup():
@@ -76,208 +79,214 @@ async def get_all_objects():
 
 
 async def test_store_file_in_cloud(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert getattr(ob.file, 'upload_file_id', None) is None
-    assert ob.file.uri is not None
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert getattr(ob.file, 'upload_file_id', None) is None
+        assert ob.file.uri is not None
 
-    assert ob.file.content_type == 'image/gif'
-    assert ob.file.filename == 'test.gif'
-    assert ob.file._size == len(_test_gif)
-    assert ob.file.md5 is not None
+        assert ob.file.content_type == 'image/gif'
+        assert ob.file.filename == 'test.gif'
+        assert ob.file._size == len(_test_gif)
+        assert ob.file.md5 is not None
 
-    assert(len(await get_all_objects()) == 1)
-    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
-    await gmng.delete_upload(ob.file.uri)
-    assert len(await get_all_objects()) == 0
+        assert(len(await get_all_objects()) == 1)
+        gmng = GCloudFileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await gmng.delete_upload(ob.file.uri)
+        assert len(await get_all_objects()) == 0
 
 
 async def test_store_file_deletes_already_started(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        login()
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert getattr(ob.file, 'upload_file_id', None) is None
-    assert ob.file.uri is not None
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert getattr(ob.file, 'upload_file_id', None) is None
+        assert ob.file.uri is not None
 
-    items = await get_all_objects()
-    assert len(items) == 1
-    assert items[0]['name'] == ob.file.uri
+        items = await get_all_objects()
+        assert len(items) == 1
+        assert items[0]['name'] == ob.file.uri
 
-    original = ob.file._uri
-    ob.__uploads__ = {
-        'file': {
-            # like it is in middle of upload so it deletes existing
-            'upload_file_id': ob.file.uri
+        original = ob.file._uri
+        ob.__uploads__ = {
+            'file': {
+                # like it is in middle of upload so it deletes existing
+                'upload_file_id': ob.file.uri
+            }
         }
-    }
 
-    request.content.seek(0)
-    request._cache_data = b''
-    request._last_read_pos = 0
+        dummy_request.content.seek(0)
+        dummy_request._cache_data = b''
+        dummy_request._last_read_pos = 0
 
-    await mng.upload()
+        await mng.upload()
 
-    assert ob.file.upload_file_id is None
-    assert ob.file.uri != original
+        assert ob.file.upload_file_id is None
+        assert ob.file.uri != original
 
-    assert len(await get_all_objects()) == 1
-    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
-    await gmng.delete_upload(ob.file.uri)
-    assert len(await get_all_objects()) == 0
+        assert len(await get_all_objects()) == 1
+        gmng = GCloudFileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await gmng.delete_upload(ob.file.uri)
+        assert len(await get_all_objects()) == 0
 
 
 async def test_store_file_when_request_retry_happens(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert ob.file.upload_file_id is None
-    assert ob.file.uri is not None
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert ob.file.upload_file_id is None
+        assert ob.file.uri is not None
 
-    items = await get_all_objects()
-    assert len(items) == 1
-    assert items[0]['name'] == ob.file.uri
+        items = await get_all_objects()
+        assert len(items) == 1
+        assert items[0]['name'] == ob.file.uri
 
-    # test retry...
-    request._retry_attempt = 1
-    await mng.upload()
+        # test retry...
+        dummy_request._retry_attempt = 1
+        await mng.upload()
 
-    assert ob.file.content_type == 'image/gif'
-    assert ob.file.filename == 'test.gif'
-    assert ob.file._size == len(_test_gif)
+        assert ob.file.content_type == 'image/gif'
+        assert ob.file.filename == 'test.gif'
+        assert ob.file._size == len(_test_gif)
 
-    assert len(await get_all_objects()) == 1
-    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
-    await gmng.delete_upload(ob.file.uri)
-    assert len(await get_all_objects()) == 0
+        assert len(await get_all_objects()) == 1
+        gmng = GCloudFileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await gmng.delete_upload(ob.file.uri)
+        assert len(await get_all_objects()) == 0
 
 
 def test_gen_key(dummy_request):
-    request = dummy_request  # noqa
-    request._container_id = 'test-container'
-    ob = create_content()
-    key = generate_key(request, ob)
-    assert key.startswith('test-container/')
-    last = key.split('/')[-1]
-    assert '::' in last
-    assert last.split('::')[0] == ob._p_oid
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        ob = create_content()
+        key = generate_key(ob)
+        assert key.startswith('test-container/')
+        last = key.split('/')[-1]
+        assert '::' in last
+        assert last.split('::')[0] == ob.__uuid__
 
 
 async def test_copy(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
 
-    new_ob = create_content()
-    new_ob.file = None
-    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
-    dm = DBDataManager(gmng)
-    await dm.load()
-    new_gmng = GCloudFileManager(
-        new_ob, request, IContent['file'].bind(new_ob))
-    new_dm = DBDataManager(new_gmng)
-    await new_dm.load()
-    await gmng.copy(new_gmng, new_dm)
+        new_ob = create_content()
+        new_ob.file = None
+        gmng = GCloudFileManager(ob, dummy_request, IContent['file'].bind(ob))
+        dm = DBDataManager(gmng)
+        await dm.load()
+        new_gmng = GCloudFileManager(
+            new_ob, dummy_request, IContent['file'].bind(new_ob))
+        new_dm = DBDataManager(new_gmng)
+        await new_dm.load()
+        await gmng.copy(new_gmng, new_dm)
 
-    new_ob.file.content_type == ob.file.content_type
-    new_ob.file.size == ob.file.size
-    new_ob.file.uri != ob.file.uri
+        new_ob.file.content_type == ob.file.content_type
+        new_ob.file.size == ob.file.size
+        new_ob.file.uri != ob.file.uri
 
-    items = await get_all_objects()
-    assert len(items) == 2
+        items = await get_all_objects()
+        assert len(items) == 2
 
 
 async def test_iterate_storage(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
 
-    request._payload = FakeContentReader()
-    for _ in range(20):
-        request.content.seek(0)
-        request._cache_data = b''
-        request._last_read_pos = 0
-        ob = create_content()
-        ob.file = None
-        mng = FileManager(ob, request, IContent['file'].bind(ob))
-        await mng.upload()
+        dummy_request._payload = FakeContentReader()
+        for _ in range(20):
+            dummy_request.content.seek(0)
+            dummy_request._cache_data = b''
+            dummy_request._last_read_pos = 0
+            ob = create_content()
+            ob.file = None
+            mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+            await mng.upload()
 
-    util = get_utility(IGCloudBlobStore)
-    count = 0
-    async for item in util.iterate_bucket():  # noqa
-        count += 1
-    assert count == 20
+        util = get_utility(IGCloudBlobStore)
+        count = 0
+        async for item in util.iterate_bucket():  # noqa
+            count += 1
+        assert count == 20
 
-    await _cleanup()
+        await _cleanup()
 
 
 async def _async_fake_stub(*args, **kwargs):
@@ -285,262 +294,270 @@ async def _async_fake_stub(*args, **kwargs):
 
 
 async def test_download(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    file_data = b''
-    # we want to test multiple chunks here...
-    while len(file_data) < CHUNK_SIZE:
-        file_data += _test_gif
+        file_data = b''
+        # we want to test multiple chunks here...
+        while len(file_data) < CHUNK_SIZE:
+            file_data += _test_gif
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(file_data),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader(file_data)
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(file_data),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader(file_data)
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert ob.file.upload_file_id is None
-    assert ob.file.uri is not None
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert ob.file.upload_file_id is None
+        assert ob.file.uri is not None
 
-    # weird newest aiohttp bug for downloading in tests... mock writer
-    request._payload_writer.write_headers = _async_fake_stub
-    request._payload_writer.write = _async_fake_stub
+        # weird newest aiohttp bug for downloading in tests... mock writer
+        dummy_request._payload_writer.write_headers = _async_fake_stub
+        dummy_request._payload_writer.write = _async_fake_stub
 
-    resp = await mng.download()
-    assert resp.content_length == len(file_data)
+        resp = await mng.download()
+        assert resp.content_length == len(file_data)
 
 
 async def test_raises_not_retryable(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        dummy_request._container_id = 'test-container'
+        await _cleanup()
 
-    file_data = b''
-    # we want to test multiple chunks here...
-    while len(file_data) < MAX_REQUEST_CACHE_SIZE:
-        file_data += _test_gif
+        file_data = b''
+        # we want to test multiple chunks here...
+        while len(file_data) < MAX_REQUEST_CACHE_SIZE:
+            file_data += _test_gif
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(file_data),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader(file_data)
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(file_data),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader(file_data)
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-
-    request._retry_attempt = 1
-    with pytest.raises(UnRetryableRequestError):
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
         await mng.upload()
+
+        dummy_request._retry_attempt = 1
+        with pytest.raises(UnRetryableRequestError):
+            await mng.upload()
 
 
 async def test_upload_statuses(dummy_request):
-    request = dummy_request
-    request._container_id = 'test-container'
-    util = get_utility(IGCloudBlobStore)
-    upload_file_id = 'foobar124'
-    bucket_name = await util.get_bucket_name()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        util = get_utility(IGCloudBlobStore)
+        upload_file_id = 'foobar124'
+        bucket_name = await util.get_bucket_name()
 
-    init_url = '{}&name={}'.format(
-        UPLOAD_URL.format(bucket=bucket_name),
-        upload_file_id)
+        init_url = '{}&name={}'.format(
+            UPLOAD_URL.format(bucket=bucket_name),
+            upload_file_id)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-                init_url,
-                headers={
-                    'AUTHORIZATION': 'Bearer {}'.format(
-                        await util.get_access_token()),
-                    'X-Upload-Content-Type': 'application/octet-stream',
-                    'Content-Type': 'application/json; charset=UTF-8'
-                }) as call:
-            resumable_uri = call.headers['Location']
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                    init_url,
+                    headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token()),
+                        'X-Upload-Content-Type': 'application/octet-stream',
+                        'Content-Type': 'application/json; charset=UTF-8'
+                    }) as call:
+                resumable_uri = call.headers['Location']
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 0-262143/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 0-262143/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 262144-524287/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 262144-524287/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '100',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 524288-524387/524388'
-                },
-                data=b'X' * 100) as call:
-            assert call.status == 200
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '100',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 524288-524387/524388'
+                    },
+                    data=b'X' * 100) as call:
+                assert call.status == 200
 
 
 async def test_upload_same_chunk_multiple_times(dummy_request):
-    request = dummy_request
-    request._container_id = 'test-container'
-    util = get_utility(IGCloudBlobStore)
-    upload_file_id = 'foobar124'
-    bucket_name = await util.get_bucket_name()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        util = get_utility(IGCloudBlobStore)
+        upload_file_id = 'foobar124'
+        bucket_name = await util.get_bucket_name()
 
-    init_url = '{}&name={}'.format(
-        UPLOAD_URL.format(bucket=bucket_name),
-        upload_file_id)
+        init_url = '{}&name={}'.format(
+            UPLOAD_URL.format(bucket=bucket_name),
+            upload_file_id)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-                init_url,
-                headers={
-                    'AUTHORIZATION': 'Bearer {}'.format(
-                        await util.get_access_token()),
-                    'X-Upload-Content-Type': 'application/octet-stream',
-                    'Content-Type': 'application/json; charset=UTF-8'
-                }) as call:
-            resumable_uri = call.headers['Location']
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                    init_url,
+                    headers={
+                        'AUTHORIZATION': 'Bearer {}'.format(
+                            await util.get_access_token()),
+                        'X-Upload-Content-Type': 'application/octet-stream',
+                        'Content-Type': 'application/json; charset=UTF-8'
+                    }) as call:
+                resumable_uri = call.headers['Location']
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 0-262143/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 0-262143/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 262144-524287/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 262144-524287/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '262144',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 262144-524287/*'
-                },
-                data=b'X' * 262144) as call:
-            assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 262144-524287/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 262144-524287/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '262144',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 262144-524287/*'
+                    },
+                    data=b'X' * 262144) as call:
+                assert call.status == 308
 
-        async with session.put(
-                resumable_uri,
-                headers={
-                    'Content-Length': '100',
-                    'Content-Type': 'application/octet-stream',
-                    'Content-Range': 'bytes 524288-524387/524388'
-                },
-                data=b'X' * 100) as call:
-            assert call.status == 200
+            async with session.put(
+                    resumable_uri,
+                    headers={
+                        'Content-Length': '100',
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': 'bytes 524288-524387/524388'
+                    },
+                    data=b'X' * 100) as call:
+                assert call.status == 200
 
 
 async def test_upload_works_with_plus_id(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    parent = create_content(id='foobar')
-    ob = create_content(id='foo+bar@foobar.com', parent=parent)
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert getattr(ob.file, 'upload_file_id', None) is None
-    assert ob.file.uri is not None
+        parent = create_content(id='foobar')
+        ob = create_content(id='foo+bar@foobar.com', parent=parent)
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert getattr(ob.file, 'upload_file_id', None) is None
+        assert ob.file.uri is not None
 
-    items = await get_all_objects()
-    assert len(items) == 1
-    assert items[0]['name'] == ob.file.uri
+        items = await get_all_objects()
+        assert len(items) == 1
+        assert items[0]['name'] == ob.file.uri
 
 
 async def test_exists_works(dummy_request):
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    await _cleanup()
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        await _cleanup()
 
-    request.headers.update({
-        'Content-Type': 'image/gif',
-        'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
-        'X-UPLOAD-EXTENSION': 'gif',
-        'X-UPLOAD-SIZE': len(_test_gif),
-        'X-UPLOAD-FILENAME': 'test.gif'
-    })
-    request._payload = FakeContentReader()
+        dummy_request.headers.update({
+            'Content-Type': 'image/gif',
+            'X-UPLOAD-MD5HASH': md5(_test_gif).hexdigest(),
+            'X-UPLOAD-EXTENSION': 'gif',
+            'X-UPLOAD-SIZE': len(_test_gif),
+            'X-UPLOAD-FILENAME': 'test.gif'
+        })
+        dummy_request._payload = FakeContentReader()
 
-    ob = create_content()
-    ob.file = None
-    mng = FileManager(ob, request, IContent['file'].bind(ob))
-    await mng.upload()
-    assert getattr(ob.file, 'upload_file_id', None) is None
-    assert ob.file.uri is not None
+        ob = create_content()
+        ob.file = None
+        mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+        await mng.upload()
+        assert getattr(ob.file, 'upload_file_id', None) is None
+        assert ob.file.uri is not None
 
-    assert(len(await get_all_objects()) == 1)
-    gmng = GCloudFileManager(ob, request, IContent['file'].bind(ob))
-    assert await gmng.exists()
+        assert(len(await get_all_objects()) == 1)
+        gmng = GCloudFileManager(ob, dummy_request, IContent['file'].bind(ob))
+        assert await gmng.exists()
 
-    await gmng.delete_upload(ob.file.uri)
-    assert len(await get_all_objects()) == 0
+        await gmng.delete_upload(ob.file.uri)
+        assert len(await get_all_objects()) == 0
 
-    assert not await gmng.exists()
+        assert not await gmng.exists()
 
 
 async def test_custom_bucket_name(dummy_request):
     util = get_utility(IGCloudBlobStore)
-    request = dummy_request  # noqa
-    login(request)
-    request._container_id = 'test-container'
-    # make sure util gets and configures bucket
-    bucket_name = await util.get_bucket_name()
-    client = google.cloud.storage.Client.from_service_account_json(
-        util._json_credentials)
-    client.get_bucket(bucket_name)
-    assert bucket_name.startswith('test-container-foobar')
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        # make sure util gets and configures bucket
+        bucket_name = await util.get_bucket_name()
+        client = google.cloud.storage.Client.from_service_account_json(
+            util._json_credentials)
+        client.get_bucket(bucket_name)
+        assert bucket_name.startswith('test-container-foobar')

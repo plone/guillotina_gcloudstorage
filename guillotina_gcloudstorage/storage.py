@@ -380,8 +380,7 @@ class GCloudBlobStore(object):
                 self._json_credentials)
         return self._client
 
-    def _create_bucket(self, bucket_name):
-        client = self.get_client()
+    def _create_bucket(self, bucket_name, client):
         bucket = google.cloud.storage.Bucket(client, name=bucket_name)
         try:
             bucket.create(
@@ -393,12 +392,11 @@ class GCloudBlobStore(object):
             bucket.create(client=client)
         return bucket
 
-    def _get_or_create_bucket(self, container, bucket_name):
-        client = self.get_client()
+    def _get_or_create_bucket(self, container, bucket_name, client):
         try:
             bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
-            bucket = self._create_bucket(bucket_name)
+            bucket = self._create_bucket(bucket_name, client)
             log.warning('We needed to create bucket ' + bucket_name)
 
         try:
@@ -433,10 +431,12 @@ class GCloudBlobStore(object):
         if bucket_name in self._cached_buckets:
             return bucket_name
 
+        client = self.get_client()
         root = get_utility(IApplication, name='root')
         loop = self._loop or asyncio.get_event_loop()
         await loop.run_in_executor(
-            root.executor, self._get_or_create_bucket, container, bucket_name)
+            root.executor, self._get_or_create_bucket,
+            container, bucket_name, client)
 
         self._cached_buckets.append(bucket_name)
         return bucket_name

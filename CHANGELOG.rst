@@ -1,4 +1,4 @@
-5.0.1 (unreleased)
+5.0.1 (2019-08-30)
 ------------------
 
 - Fix get_client to not be called in executor because context vars do not work in task vars

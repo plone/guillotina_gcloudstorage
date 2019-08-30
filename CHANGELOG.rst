@@ -1,7 +1,8 @@
 5.0.1 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix get_client to not be called in executor because context vars do not work in task vars
+  [vangheem]
 
 
 5.0.0 (2019-06-23)

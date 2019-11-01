@@ -1,7 +1,8 @@
 5.0.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Be able to import types
+  [vangheem]
 
 
 5.0.1 (2019-08-30)

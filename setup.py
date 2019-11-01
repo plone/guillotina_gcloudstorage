@@ -31,6 +31,8 @@ setup(
 
     include_package_data=True,
     packages=find_packages(exclude=['ez_setup']),
+    package_data={
+        "": ["*.txt", "*.rst"], "guillotina_gcloudstorage": ["py.typed"]},
     install_requires=[
         'setuptools',
         'guillotina>=5.0.0a7',

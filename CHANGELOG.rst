@@ -1,4 +1,4 @@
-5.0.3 (unreleased)
+5.0.3 (2019-11-08)
 ------------------
 
 - Fix `GCloudFileManager.append()`

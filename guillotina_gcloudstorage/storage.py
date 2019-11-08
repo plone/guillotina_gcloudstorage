@@ -205,23 +205,26 @@ class GCloudFileManager(object):
             raise AttributeError('No valid uri')
 
     async def _append(self, dm, data, offset):
-        if dm.size:
+        if dm.size is not None:
             size = dm.size
         else:
             # assuming size will come eventually
             size = '*'
-        content_range = 'bytes {init}-{chunk}/{total}'.format(
-            init=offset,
-            chunk=offset + len(data) - 1,
-            total=size)
+        headers = {
+            'Content-Length': str(len(data)),
+            'Content-Type': to_str(dm.content_type),
+        }
+        if len(data) != size:
+            content_range = 'bytes {init}-{chunk}/{total}'.format(
+                init=offset,
+                chunk=offset + len(data) - 1,
+                total=size)
+            headers['Content-Range'] = content_range
+
         util = get_utility(IGCloudBlobStore)
         async with util.session.put(
                 dm.get('resumable_uri'),
-                headers={
-                    'Content-Length': str(len(data)),
-                    'Content-Type': to_str(dm.content_type),
-                    'Content-Range': content_range
-                },
+                headers=headers,
                 data=data) as call:
             text = await call.text()  # noqa
             if call.status not in [200, 201, 308]:

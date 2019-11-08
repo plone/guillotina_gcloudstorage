@@ -1,3 +1,4 @@
+from functools import partial
 from guillotina import task_vars
 from guillotina.component import get_utility
 from guillotina.content import Container
@@ -78,7 +79,7 @@ async def get_all_objects():
     return items
 
 
-async def test_store_file_in_cloud(dummy_request):
+async def test_store_file_in_cloud(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -112,7 +113,7 @@ async def test_store_file_in_cloud(dummy_request):
         assert len(await get_all_objects()) == 0
 
 
-async def test_store_file_deletes_already_started(dummy_request):
+async def test_store_file_deletes_already_started(dummy_request, mock_txn):
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
     with dummy_request:
@@ -162,7 +163,7 @@ async def test_store_file_deletes_already_started(dummy_request):
         assert len(await get_all_objects()) == 0
 
 
-async def test_store_file_when_request_retry_happens(dummy_request):
+async def test_store_file_when_request_retry_happens(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -215,7 +216,7 @@ def test_gen_key(dummy_request):
         assert last.split('::')[0] == ob.__uuid__
 
 
-async def test_copy(dummy_request):
+async def test_copy(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -255,7 +256,7 @@ async def test_copy(dummy_request):
         assert len(items) == 2
 
 
-async def test_iterate_storage(dummy_request):
+async def test_iterate_storage(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -293,7 +294,7 @@ async def _async_fake_stub(*args, **kwargs):
     pass
 
 
-async def test_download(dummy_request):
+async def test_download(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -329,7 +330,55 @@ async def test_download(dummy_request):
         assert resp.content_length == len(file_data)
 
 
-async def test_raises_not_retryable(dummy_request):
+async def _gen(file_data):
+    while True:
+        if len(file_data) <= CHUNK_SIZE:
+            yield file_data
+            break
+        else:
+            yield file_data[:CHUNK_SIZE]
+            file_data = file_data[CHUNK_SIZE:]
+
+
+async def test_save_file(dummy_request, mock_txn):
+    login()
+    container = create_content(Container, id='test-container')
+    task_vars.container.set(container)
+    with dummy_request:
+        gif_file_data = b''
+        # we want to test multiple chunks here...
+        while len(gif_file_data) < CHUNK_SIZE:
+            gif_file_data += _test_gif
+
+        for file_data in (b'', b' ', b' ' * CHUNK_SIZE, gif_file_data):
+            await _cleanup()
+
+            dummy_request.headers.update({
+                'Content-Type': 'image/gif',
+                'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+                'X-UPLOAD-EXTENSION': 'gif',
+                'X-UPLOAD-SIZE': len(file_data),
+                'X-UPLOAD-FILENAME': 'test.gif'
+            })
+            dummy_request._payload = FakeContentReader(file_data)
+
+            ob = create_content()
+            ob.file = None
+            mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+            resp = await mng.save_file(partial(_gen, file_data), size=len(file_data))
+            assert ob.file.upload_file_id is None
+            assert ob.file.uri is not None
+
+            # weird newest aiohttp bug for downloading in tests... mock writer
+            dummy_request._payload_writer.write_headers = _async_fake_stub
+            dummy_request._payload_writer.write = _async_fake_stub
+
+            resp = await mng.download()
+            if resp.content_length:
+                assert resp.content_length == len(file_data)
+
+
+async def test_raises_not_retryable(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -487,7 +536,7 @@ async def test_upload_same_chunk_multiple_times(dummy_request):
                 assert call.status == 200
 
 
-async def test_upload_works_with_plus_id(dummy_request):
+async def test_upload_works_with_plus_id(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)
@@ -516,7 +565,7 @@ async def test_upload_works_with_plus_id(dummy_request):
         assert items[0]['name'] == ob.file.uri
 
 
-async def test_exists_works(dummy_request):
+async def test_exists_works(dummy_request, mock_txn):
     login()
     container = create_content(Container, id='test-container')
     task_vars.container.set(container)

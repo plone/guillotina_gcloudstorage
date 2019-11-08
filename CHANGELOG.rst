@@ -1,7 +1,8 @@
 5.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix `GCloudFileManager.append()`
+  [qiwn]
 
 
 5.0.2 (2019-11-01)

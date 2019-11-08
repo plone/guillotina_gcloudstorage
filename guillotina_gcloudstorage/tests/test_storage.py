@@ -350,33 +350,32 @@ async def test_save_file(dummy_request, mock_txn):
         while len(gif_file_data) < CHUNK_SIZE:
             gif_file_data += _test_gif
 
-        for set_size in (False, True):
-            for file_data in (b'', b' ', b' ' * CHUNK_SIZE, gif_file_data):
-                await _cleanup()
+        for file_data in (b'', b' ', b' ' * CHUNK_SIZE, gif_file_data):
+            await _cleanup()
 
-                dummy_request.headers.update({
-                    'Content-Type': 'image/gif',
-                    'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
-                    'X-UPLOAD-EXTENSION': 'gif',
-                    'X-UPLOAD-SIZE': len(file_data),
-                    'X-UPLOAD-FILENAME': 'test.gif'
-                })
-                dummy_request._payload = FakeContentReader(file_data)
+            dummy_request.headers.update({
+                'Content-Type': 'image/gif',
+                'X-UPLOAD-MD5HASH': md5(file_data).hexdigest(),
+                'X-UPLOAD-EXTENSION': 'gif',
+                'X-UPLOAD-SIZE': len(file_data),
+                'X-UPLOAD-FILENAME': 'test.gif'
+            })
+            dummy_request._payload = FakeContentReader(file_data)
 
-                ob = create_content()
-                ob.file = None
-                mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
-                resp = await mng.save_file(partial(_gen, file_data), size=len(file_data) if set_size else None)
-                assert ob.file.upload_file_id is None
-                assert ob.file.uri is not None
+            ob = create_content()
+            ob.file = None
+            mng = FileManager(ob, dummy_request, IContent['file'].bind(ob))
+            resp = await mng.save_file(partial(_gen, file_data), size=len(file_data))
+            assert ob.file.upload_file_id is None
+            assert ob.file.uri is not None
 
-                # weird newest aiohttp bug for downloading in tests... mock writer
-                dummy_request._payload_writer.write_headers = _async_fake_stub
-                dummy_request._payload_writer.write = _async_fake_stub
+            # weird newest aiohttp bug for downloading in tests... mock writer
+            dummy_request._payload_writer.write_headers = _async_fake_stub
+            dummy_request._payload_writer.write = _async_fake_stub
 
-                resp = await mng.download()
-                if resp.content_length:
-                    assert resp.content_length == len(file_data)
+            resp = await mng.download()
+            if resp.content_length:
+                assert resp.content_length == len(file_data)
 
 
 async def test_raises_not_retryable(dummy_request, mock_txn):

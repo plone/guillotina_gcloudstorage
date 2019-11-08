@@ -204,11 +204,9 @@ class GCloudFileManager(object):
         else:
             raise AttributeError('No valid uri')
 
-    async def _append(self, dm, data, offset, is_last):
+    async def _append(self, dm, data, offset):
         if dm.size is not None:
             size = dm.size
-        elif is_last:
-            size = len(data) + offset
         else:
             # assuming size will come eventually
             size = '*'
@@ -235,21 +233,8 @@ class GCloudFileManager(object):
 
     async def append(self, dm, iterable, offset) -> int:
         count = 0
-        is_last = False
-
-        try:
-            next_chunk = await iterable.__anext__()
-        except StopAsyncIteration:
-            return count
-
-        while True:
-            chunk = next_chunk
-            try:
-                next_chunk = await iterable.__anext__()
-            except StopAsyncIteration:
-                is_last = True
-
-            resp = await self._append(dm, chunk, offset, is_last)
+        async for chunk in iterable:
+            resp = await self._append(dm, chunk, offset)
             size = len(chunk)
             count += size
             offset += len(chunk)
@@ -268,10 +253,6 @@ class GCloudFileManager(object):
             elif resp.status in [200, 201]:
                 # file manager will double check offsets and sizes match
                 break
-
-            if is_last:
-                break
-
         return count
 
     async def finish(self, dm):

@@ -233,17 +233,22 @@ class GCloudFileManager(object):
                 log.error(text)
             return call
 
-    async def _async_gen_lookahead(self, gen):
-        async for prev in gen:
-            async for el in gen:
-                yield False, prev
-                prev = el
-
-            yield True, prev
-
     async def append(self, dm, iterable, offset) -> int:
         count = 0
-        async for is_last, chunk in self._async_gen_lookahead(iterable):
+        is_last = False
+
+        try:
+            next_chunk = await iterable.__anext__()
+        except StopAsyncIteration:
+            return count
+
+        while True:
+            chunk = next_chunk
+            try:
+                next_chunk = await iterable.__anext__()
+            except StopAsyncIteration:
+                is_last = True
+
             resp = await self._append(dm, chunk, offset, is_last)
             size = len(chunk)
             count += size
@@ -263,6 +268,10 @@ class GCloudFileManager(object):
             elif resp.status in [200, 201]:
                 # file manager will double check offsets and sizes match
                 break
+
+            if is_last:
+                break
+
         return count
 
     async def finish(self, dm):

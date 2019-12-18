@@ -96,7 +96,6 @@ class GCloudFileManager(object):
         return cleanup is None or cleanup.should_clean(
             file=file, field=self.field)
 
-    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def iter_data(self, uri=None):
         if uri is None:
             file = self.field.get(self.field.context or self.context)

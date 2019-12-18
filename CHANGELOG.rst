@@ -1,7 +1,8 @@
 5.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- No backoff on iter_data
+  [vangheem]
 
 
 5.0.4 (2019-12-18)

@@ -55,7 +55,9 @@ class GoogleCloudException(Exception):
 
 RETRIABLE_EXCEPTIONS = (
     GoogleCloudException,
-    aiohttp.client_exceptions.ClientPayloadError
+    aiohttp.client_exceptions.ClientPayloadError,
+    aiohttp.client_exceptions.ClientConnectorError,
+    aiohttp.client_exceptions.ClientOSError,
 )
 
 
@@ -94,6 +96,7 @@ class GCloudFileManager(object):
         return cleanup is None or cleanup.should_clean(
             file=file, field=self.field)
 
+    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def iter_data(self, uri=None):
         if uri is None:
             file = self.field.get(self.field.context or self.context)
@@ -180,6 +183,7 @@ class GCloudFileManager(object):
             upload_file_id=upload_file_id
         )
 
+    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def delete_upload(self, uri):
         util = get_utility(IGCloudBlobStore)
         if uri is not None:
@@ -198,12 +202,14 @@ class GCloudFileManager(object):
                     data = {}
                     text = await resp.text()
                     log.error(f'Unknown error from google cloud: {text}, '
-                              f'status: {resp.status}')
+                              f'status: {resp.status}', exc_info=True)
                 if resp.status not in (200, 204, 404):
                     raise GoogleCloudException(json.dumps(data))
         else:
             raise AttributeError('No valid uri')
 
+    @backoff.on_exception(backoff.constant, RETRIABLE_EXCEPTIONS,
+                          interval=1, max_tries=4)
     async def _append(self, dm, data, offset):
         if dm.size is not None:
             size = dm.size
@@ -269,6 +275,7 @@ class GCloudFileManager(object):
             upload_file_id=None
         )
 
+    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def exists(self):
         file = self.field.get(self.field.context or self.context)
         if not _is_uploaded_file(file):
@@ -286,6 +293,7 @@ class GCloudFileManager(object):
                 }) as api_resp:
             return api_resp.status == 200
 
+    @backoff.on_exception(backoff.expo, RETRIABLE_EXCEPTIONS, max_tries=4)
     async def copy(self, to_storage_manager, to_dm):
         file = self.field.get(self.field.context or self.context)
         if not _is_uploaded_file(file):

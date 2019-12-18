@@ -1,7 +1,8 @@
 5.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- More backoff decorators to address intermittent API issues
+  [vangheem]
 
 
 5.0.3 (2019-11-08)

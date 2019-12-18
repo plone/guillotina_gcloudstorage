@@ -1,4 +1,4 @@
-5.0.4 (unreleased)
+5.0.4 (2019-12-18)
 ------------------
 
 - More backoff decorators to address intermittent API issues

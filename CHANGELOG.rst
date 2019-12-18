@@ -1,4 +1,4 @@
-5.0.5 (unreleased)
+5.0.5 (2019-12-18)
 ------------------
 
 - No backoff on iter_data

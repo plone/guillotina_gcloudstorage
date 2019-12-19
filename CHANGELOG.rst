@@ -1,8 +1,8 @@
 5.0.6 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- More error handling and retries
+  [vangheem]
 
 5.0.5 (2019-12-18)
 ------------------

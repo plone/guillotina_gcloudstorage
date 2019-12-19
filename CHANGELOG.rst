@@ -1,4 +1,4 @@
-5.0.6 (unreleased)
+5.0.6 (2019-12-19)
 ------------------
 
 - More error handling and retries

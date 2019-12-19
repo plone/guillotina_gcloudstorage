@@ -198,8 +198,10 @@ class GCloudFileManager(object):
                 try:
                     data = await resp.json()
                 except Exception:
-                    data = {}
                     text = await resp.text()
+                    data = {
+                        'text': text
+                    }
                     log.error(f'Unknown error from google cloud: {text}, '
                               f'status: {resp.status}', exc_info=True)
                 if resp.status not in (200, 204, 404):
@@ -233,7 +235,7 @@ class GCloudFileManager(object):
                 data=data) as call:
             text = await call.text()  # noqa
             if call.status not in [200, 201, 308]:
-                log.error(text)
+                raise GoogleCloudException(text)
             return call
 
     async def append(self, dm, iterable, offset) -> int:
@@ -267,8 +269,8 @@ class GCloudFileManager(object):
                 try:
                     await self.delete_upload(file.uri)
                 except GoogleCloudException as e:
-                    log.warn(f'Could not delete existing google cloud file '
-                             f'with uri: {file.uri}: {e}')
+                    log.warning(f'Could not delete existing google cloud file '
+                                f'with uri: {file.uri}: {e}')
         await dm.update(
             uri=dm.get('upload_file_id'),
             upload_file_id=None
@@ -319,7 +321,7 @@ class GCloudFileManager(object):
             if resp.status == 404:
                 text = await resp.text()
                 reason = f'Could not copy file: {file.uri} to {new_uri}:404: {text}'  # noqa
-                log.error(reason)
+                log.warning(reason)
                 raise HTTPNotFound(content={
                     "reason": reason
                 })

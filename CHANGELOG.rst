@@ -1,4 +1,4 @@
-5.0.7 (unreleased)
+5.0.7 (2019-12-19)
 ------------------
 
 - More logging info

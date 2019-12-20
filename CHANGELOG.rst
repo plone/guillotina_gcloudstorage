@@ -1,7 +1,8 @@
 5.0.9 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Handle 401 error
+  [vangheem]
 
 
 5.0.8 (2019-12-20)

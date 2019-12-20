@@ -126,6 +126,13 @@ class GCloudFileManager(object):
                         "reason": 'Google cloud file not found',
                         "response": text
                     })
+                elif api_resp.status == 401:
+                    log.warning(
+                        f'Invalid google cloud credentials error: {text}')
+                    raise HTTPNotFound(content={
+                        "reason": 'Google cloud invalid credentials',
+                        "response": text
+                    })
                 raise GoogleCloudException(f"{api_resp.status}: {text}")
             while True:
                 chunk = await api_resp.content.read(1024 * 1024)

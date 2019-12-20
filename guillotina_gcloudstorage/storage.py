@@ -12,6 +12,7 @@ from guillotina.interfaces import IFileCleanup
 from guillotina.interfaces import IJSONToValue
 from guillotina.interfaces import IRequest
 from guillotina.interfaces import IResource
+from guillotina.response import HTTPGone
 from guillotina.response import HTTPNotFound
 from guillotina.response import HTTPPreconditionFailed
 from guillotina.schema import Object
@@ -236,6 +237,12 @@ class GCloudFileManager(object):
                 data=data) as call:
             text = await call.text()  # noqa
             if call.status not in [200, 201, 308]:
+                if call.status == 410:
+                    raise HTTPGone(content={
+                        'reason': 'googleError',
+                        'message': 'Resumable upload is no longer available',
+                        'info': text
+                    })
                 raise GoogleCloudException(f"{call.status}: {text}")
             return call
 

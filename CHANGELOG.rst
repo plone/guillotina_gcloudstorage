@@ -1,7 +1,8 @@
 5.0.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Handle 410 errors from google on upload
+  [vangheem]
 
 
 5.0.7 (2019-12-19)

@@ -1,7 +1,8 @@
 5.0.7 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- More logging info
+  [vangheem]
 
 
 5.0.6 (2019-12-19)

@@ -125,7 +125,7 @@ class GCloudFileManager(object):
                         "reason": 'Google cloud file not found',
                         "response": text
                     })
-                raise GoogleCloudException(text)
+                raise GoogleCloudException(f"{api_resp.status}: {text}")
             while True:
                 chunk = await api_resp.content.read(1024 * 1024)
                 if len(chunk) > 0:
@@ -173,7 +173,7 @@ class GCloudFileManager(object):
                 data=metadata) as call:
             if call.status != 200:
                 text = await call.text()
-                raise GoogleCloudException(text)
+                raise GoogleCloudException(f"{call.status}: {text}")
             resumable_uri = call.headers['Location']
 
         await dm.update(
@@ -205,7 +205,8 @@ class GCloudFileManager(object):
                     log.error(f'Unknown error from google cloud: {text}, '
                               f'status: {resp.status}', exc_info=True)
                 if resp.status not in (200, 204, 404):
-                    raise GoogleCloudException(json.dumps(data))
+                    raise GoogleCloudException(
+                        f"{resp.status}: {json.dumps(data)}")
         else:
             raise AttributeError('No valid uri')
 
@@ -235,7 +236,7 @@ class GCloudFileManager(object):
                 data=data) as call:
             text = await call.text()  # noqa
             if call.status not in [200, 201, 308]:
-                raise GoogleCloudException(text)
+                raise GoogleCloudException(f"{call.status}: {text}")
             return call
 
     async def append(self, dm, iterable, offset) -> int:

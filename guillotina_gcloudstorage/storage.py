@@ -210,11 +210,14 @@ class GCloudFileManager(object):
                     data = {
                         'text': text
                     }
-                    log.error(f'Unknown error from google cloud: {text}, '
-                              f'status: {resp.status}', exc_info=True)
                 if resp.status not in (200, 204, 404):
-                    raise GoogleCloudException(
-                        f"{resp.status}: {json.dumps(data)}")
+                    if resp.status == 404:
+                        log.error(
+                            f'Attempt to delete not found gcloud: {data}, '
+                            f'status: {resp.status}', exc_info=True)
+                    else:
+                        raise GoogleCloudException(
+                            f"{resp.status}: {json.dumps(data)}")
         else:
             raise AttributeError('No valid uri')
 

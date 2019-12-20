@@ -1,7 +1,8 @@
 5.0.10 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Handle 404 on delete
+  [vangheem]
 
 
 5.0.9 (2019-12-20)

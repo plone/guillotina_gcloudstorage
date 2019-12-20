@@ -1,4 +1,4 @@
-5.0.8 (unreleased)
+5.0.8 (2019-12-20)
 ------------------
 
 - Handle 410 errors from google on upload

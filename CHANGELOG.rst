@@ -1,7 +1,10 @@
 5.0.11 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Add range support
+  [vangheem]
+
+- Apply black to code
 
 
 5.0.10 (2019-12-20)

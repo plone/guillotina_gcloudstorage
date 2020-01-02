@@ -24,3 +24,15 @@ Example config.json entry::
         }
     }
     ...
+
+
+Getting started with development
+--------------------------------
+
+Using pip (requires Python > 3.7)
+
+.. code-block:: shell
+
+    python3.7 -m venv .
+    ./bin/pip install -e .[test]
+    pre-commit install

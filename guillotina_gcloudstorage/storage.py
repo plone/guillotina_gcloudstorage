@@ -139,6 +139,9 @@ class GCloudFileManager(object):
                 else:
                     break
 
+    async def range_supported(self) -> bool:
+        return True
+
     async def read_range(self, start: int, end: int) -> AsyncIterator[bytes]:
         """
         Iterate through ranges of data

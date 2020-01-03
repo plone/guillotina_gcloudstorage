@@ -1,7 +1,8 @@
 5.0.12 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Add missing `range_supported`
+  [vangheem]
 
 
 5.0.11 (2020-01-02)

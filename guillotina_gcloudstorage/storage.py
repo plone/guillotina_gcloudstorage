@@ -395,6 +395,9 @@ class GCloudBlobStore(object):
             "bucket_name_format", "{container}{delimiter}{base}"
         )
         self._bucket_labels = settings.get("bucket_labels") or {}
+        self._uniform_bucket_level_access = settings.get(
+            "uniform_bucket_level_access", False
+        )
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
         self._client = None
@@ -445,7 +448,14 @@ class GCloudBlobStore(object):
         orig_labels = labels.copy()
         labels["container"] = container.id.lower()
         labels.update(self._bucket_labels)
-        if orig_labels != labels:
+        if (
+            orig_labels != labels
+            or bucket.iam_configuration.bucket_policy_only_enabled
+            is not self._uniform_bucket_level_access
+        ):
+            bucket.iam_configuration.bucket_policy_only_enabled = (
+                self._uniform_bucket_level_access
+            )
             # only update if labels have changed
             bucket.labels = labels
             try:

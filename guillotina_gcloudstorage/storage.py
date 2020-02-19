@@ -30,6 +30,7 @@ from zope.interface import implementer
 import aiohttp
 import asyncio
 import backoff
+import google.api_core.exceptions
 import google.cloud.exceptions
 import google.cloud.storage
 import json
@@ -460,7 +461,10 @@ class GCloudBlobStore(object):
             bucket.labels = labels
             try:
                 bucket.patch()
-            except google.cloud.exceptions.Forbidden:
+            except (
+                google.cloud.exceptions.Forbidden,
+                google.api_core.exceptions.TooManyRequests,
+            ):
                 log.warning(
                     "Insufficient permission to update bucket labels: {}".format(
                         bucket_name

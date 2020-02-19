@@ -442,17 +442,20 @@ class GCloudBlobStore(object):
         except AttributeError:
             labels = {}
 
+        orig_labels = labels.copy()
         labels["container"] = container.id.lower()
         labels.update(self._bucket_labels)
-        bucket.labels = labels
-        try:
-            bucket.patch()
-        except google.cloud.exceptions.Forbidden:
-            log.warning(
-                "Insufficient permission to update bucket labels: {}".format(
-                    bucket_name
+        if orig_labels != labels:
+            # only update if labels have changed
+            bucket.labels = labels
+            try:
+                bucket.patch()
+            except google.cloud.exceptions.Forbidden:
+                log.warning(
+                    "Insufficient permission to update bucket labels: {}".format(
+                        bucket_name
+                    )
                 )
-            )
         return bucket
 
     async def get_bucket_name(self):

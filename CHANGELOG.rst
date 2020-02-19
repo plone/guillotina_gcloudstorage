@@ -1,7 +1,8 @@
 5.0.13 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Do not update bucket labels if they have not changed
+  [vangheem]
 
 
 5.0.12 (2020-01-02)

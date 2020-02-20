@@ -30,6 +30,7 @@ from zope.interface import implementer
 import aiohttp
 import asyncio
 import backoff
+import google.api_core.exceptions
 import google.cloud.exceptions
 import google.cloud.storage
 import json
@@ -395,6 +396,9 @@ class GCloudBlobStore(object):
             "bucket_name_format", "{container}{delimiter}{base}"
         )
         self._bucket_labels = settings.get("bucket_labels") or {}
+        self._uniform_bucket_level_access = settings.get(
+            "uniform_bucket_level_access", False
+        )
         self._cached_buckets = []
         self._creation_access_token = datetime.now()
         self._client = None
@@ -442,17 +446,31 @@ class GCloudBlobStore(object):
         except AttributeError:
             labels = {}
 
+        orig_labels = labels.copy()
         labels["container"] = container.id.lower()
         labels.update(self._bucket_labels)
-        bucket.labels = labels
-        try:
-            bucket.patch()
-        except google.cloud.exceptions.Forbidden:
-            log.warning(
-                "Insufficient permission to update bucket labels: {}".format(
-                    bucket_name
-                )
+        if (
+            orig_labels != labels
+            or bucket.iam_configuration.bucket_policy_only_enabled
+            is not self._uniform_bucket_level_access
+        ):
+            bucket.iam_configuration.bucket_policy_only_enabled = (
+                self._uniform_bucket_level_access
             )
+            # only update if labels have changed
+            bucket.labels = labels
+            try:
+                bucket.patch()
+            except (
+                google.cloud.exceptions.Forbidden,
+                google.api_core.exceptions.TooManyRequests,
+                google.api_core.exceptions.ServiceUnavailable,
+            ):
+                log.warning(
+                    "Insufficient permission to update bucket labels: {}".format(
+                        bucket_name
+                    )
+                )
         return bucket
 
     async def get_bucket_name(self):

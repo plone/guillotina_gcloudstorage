@@ -1,7 +1,11 @@
 5.0.13 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Allow configuring uniform bucket level access by setting uniform_bucket_level_access
+  [vangheem]
+
+- Do not update bucket labels if they have not changed
+  [vangheem]
 
 
 5.0.12 (2020-01-02)

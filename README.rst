@@ -14,6 +14,7 @@ Example config.json entry::
             "provides": "guillotina_gcloudstorage.interfaces.IGCloudBlobStore",
             "factory": "guillotina_gcloudstorage.storage.GCloudBlobStore",
             "settings": {
+                "uniform_bucket_level_access": True,
                 "json_credentials": "/path/to/credentials.json",
                 "bucket": "name-of-bucket",
                 "bucket_name_format": "{container}-foobar{delimiter}{base}",

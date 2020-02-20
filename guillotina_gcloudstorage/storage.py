@@ -464,6 +464,7 @@ class GCloudBlobStore(object):
             except (
                 google.cloud.exceptions.Forbidden,
                 google.api_core.exceptions.TooManyRequests,
+                google.api_core.exceptions.ServiceUnavailable,
             ):
                 log.warning(
                     "Insufficient permission to update bucket labels: {}".format(

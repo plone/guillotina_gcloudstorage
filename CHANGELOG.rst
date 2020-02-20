@@ -1,4 +1,4 @@
-5.0.13 (unreleased)
+5.0.13 (2020-02-20)
 -------------------
 
 - Allow configuring uniform bucket level access by setting uniform_bucket_level_access

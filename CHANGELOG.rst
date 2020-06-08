@@ -1,4 +1,4 @@
-5.0.14 (unreleased)
+5.0.14 (2020-06-08)
 -------------------
 
 - Handle Conflict error when creating bucket. This can happen when multiple pods are attempting to

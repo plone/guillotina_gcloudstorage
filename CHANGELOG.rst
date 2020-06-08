@@ -1,7 +1,9 @@
 5.0.14 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Handle Conflict error when creating bucket. This can happen when multiple pods are attempting to
+  create bucket at the same time.
+  [vangheem]
 
 
 5.0.13 (2020-02-20)

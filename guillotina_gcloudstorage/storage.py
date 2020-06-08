@@ -46,9 +46,7 @@ log = logging.getLogger("guillotina_gcloudstorage")
 MAX_SIZE = 1073741824
 
 SCOPES = ["https://www.googleapis.com/auth/devstorage.read_write"]
-UPLOAD_URL = (
-    "https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable"
-)  # noqa
+UPLOAD_URL = "https://www.googleapis.com/upload/storage/v1/b/{bucket}/o?uploadType=resumable"  # noqa
 OBJECT_BASE_URL = "https://www.googleapis.com/storage/v1/b"
 CHUNK_SIZE = 524288
 MAX_RETRIES = 5
@@ -348,8 +346,8 @@ class GCloudFileManager(object):
             if resp.status == 404:
                 text = await resp.text()
                 reason = (
-                    f"Could not copy file: {file.uri} to {new_uri}:404: {text}"
-                )  # noqa
+                    f"Could not copy file: {file.uri} to {new_uri}:404: {text}"  # noqa
+                )
                 log.warning(reason)
                 raise HTTPNotFound(content={"reason": reason})
             else:
@@ -438,8 +436,12 @@ class GCloudBlobStore(object):
         try:
             bucket = client.get_bucket(bucket_name)
         except google.cloud.exceptions.NotFound:
-            bucket = self._create_bucket(bucket_name, client)
-            log.warning("We needed to create bucket " + bucket_name)
+            try:
+                bucket = self._create_bucket(bucket_name, client)
+                log.warning("We needed to create bucket " + bucket_name)
+            except google.api_core.exceptions.Conflict:
+                # created by another process in the meantime
+                bucket = client.get_bucket(bucket_name)
 
         try:
             labels = bucket.labels
@@ -462,10 +464,12 @@ class GCloudBlobStore(object):
             try:
                 bucket.patch()
             except (
-                google.cloud.exceptions.Forbidden,
+                google.api_core.exceptions.Conflict,
                 google.api_core.exceptions.TooManyRequests,
                 google.api_core.exceptions.ServiceUnavailable,
             ):
+                ...
+            except google.cloud.exceptions.Forbidden:
                 log.warning(
                     "Insufficient permission to update bucket labels: {}".format(
                         bucket_name

@@ -1,4 +1,4 @@
-6.0.0 (unreleased)
+6.0.0 (2020-07-29)
 ------------------
 
 - Moving to Guillotina 6

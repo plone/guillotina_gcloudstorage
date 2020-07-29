@@ -2,7 +2,7 @@ install:
 	pip install -e .[test]
 
 pre-checks-deps: lint-deps
-	pip install flake8 mypy mypy_zope
+	pip install flake8 mypy_zope mypy
 
 pre-checks: pre-checks-deps
 	flake8 guillotina_gcloudstorage --config=setup.cfg

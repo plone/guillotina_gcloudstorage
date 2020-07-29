@@ -1,8 +1,10 @@
-5.0.15 (unreleased)
+6.0.0 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- Moving to Guillotina 6
+- Added github actions
+- Linting: black and isort
+[lferran]
 
 5.0.14 (2020-06-08)
 -------------------

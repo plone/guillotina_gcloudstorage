@@ -1,6 +1,6 @@
-from guillotina import testing
-
 import os
+
+from guillotina import testing
 
 
 def base_settings_configurator(settings):

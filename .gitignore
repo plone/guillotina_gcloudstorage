@@ -6,5 +6,6 @@ extras/
 include/
 lib/
 pip-selfcheck.json
-
+venv/
 .idea
+.python-version

@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
+import asyncio
+import json
+import logging
 from datetime import datetime
+from typing import AsyncIterator
+from urllib.parse import quote_plus
+
+import aiohttp
+import backoff
+import google.api_core.exceptions
+import google.cloud.exceptions
+import google.cloud.storage
 from guillotina import configure
 from guillotina import task_vars
 from guillotina.component import get_utility
@@ -19,22 +30,12 @@ from guillotina.schema import Object
 from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
 from guillotina.utils import to_str
+from oauth2client.service_account import ServiceAccountCredentials
+from zope.interface import implementer
+
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
-from oauth2client.service_account import ServiceAccountCredentials
-from typing import AsyncIterator
-from urllib.parse import quote_plus
-from zope.interface import implementer
-
-import aiohttp
-import asyncio
-import backoff
-import google.api_core.exceptions
-import google.cloud.exceptions
-import google.cloud.storage
-import json
-import logging
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):

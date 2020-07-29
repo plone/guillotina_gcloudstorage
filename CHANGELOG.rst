@@ -1,10 +1,11 @@
 6.0.0 (unreleased)
--------------------
+------------------
 
 - Moving to Guillotina 6
 - Added github actions
 - Linting: black and isort
-[lferran]
+  [lferran]
+
 
 5.0.14 (2020-06-08)
 -------------------
@@ -12,7 +13,6 @@
 - Handle Conflict error when creating bucket. This can happen when multiple pods are attempting to
   create bucket at the same time.
   [vangheem]
-
 
 5.0.13 (2020-02-20)
 -------------------

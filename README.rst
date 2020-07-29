@@ -4,7 +4,9 @@ GUILLOTINA_GCLOUDSTORAGE
 GCloud blob storage for guillotina.
 
 
-Example config.json entry::
+Example config.json entry:
+
+.. code-block:: json
 
     ...
     "cloud_storage": "guillotina_gcloudstorage.interfaces.IGCloudFileField",
@@ -30,7 +32,7 @@ Example config.json entry::
 Getting started with development
 --------------------------------
 
-Using pip (requires Python > 3.7)
+Using pip (requires Python > 3.7):
 
 .. code-block:: shell
 

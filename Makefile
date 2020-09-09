@@ -8,6 +8,7 @@ pre-checks: pre-checks-deps
 	flake8 guillotina_gcloudstorage --config=setup.cfg
 	isort -v
 	pip list
+	isort --diff guillotina_gcloudstorage/*
 	isort -c -rc guillotina_gcloudstorage
 	black --check --verbose guillotina_gcloudstorage
 	mypy -p guillotina_gcloudstorage --ignore-missing-imports

@@ -2,8 +2,7 @@ install:
 	pip install -e .[test]
 
 pre-checks-deps: lint-deps
-	# pip install flake8 mypy_zope "mypy<0.782"
-	echo ""
+	pip install flake8 mypy_zope mypy
 
 pre-checks: pre-checks-deps
 	# flake8 guillotina_gcloudstorage --config=setup.cfg
@@ -16,8 +15,7 @@ pre-checks: pre-checks-deps
 	#mypy -p guillotina_gcloudstorage --ignore-missing-imports
 
 lint-deps:
-	#pip install -U "isort>=4,<5" toml==0.10.1
-	pip install 'git+https://github.com/PyCQA/isort.git@4.3.21-2'
+	pip install "isort<5"
 	#black
 
 lint:

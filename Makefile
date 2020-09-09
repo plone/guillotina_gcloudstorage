@@ -11,12 +11,11 @@ pre-checks: pre-checks-deps
 	pip list
 	isort --diff -rc guillotina_gcloudstorage
 	isort -c -rc guillotina_gcloudstorage
-	# black --check --verbose guillotina_gcloudstorage
+	black --check --verbose guillotina_gcloudstorage
 	#mypy -p guillotina_gcloudstorage --ignore-missing-imports
 
 lint-deps:
-	pip install "isort<5"
-	#black
+	pip install "isort<5" black
 
 lint:
 	isort -rc guillotina_gcloudstorage

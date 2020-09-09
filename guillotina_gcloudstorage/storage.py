@@ -1,31 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from guillotina import configure
-from guillotina import task_vars
-from guillotina.component import get_utility
-from guillotina.exceptions import FileNotFoundException
-from guillotina.files import BaseCloudFile
-from guillotina.files.utils import generate_key
-from guillotina.interfaces import IApplication
-from guillotina.interfaces import IExternalFileStorageManager
-from guillotina.interfaces import IFileCleanup
-from guillotina.interfaces import IJSONToValue
-from guillotina.interfaces import IRequest
-from guillotina.interfaces import IResource
-from guillotina.response import HTTPGone
-from guillotina.response import HTTPNotFound
-from guillotina.response import HTTPPreconditionFailed
-from guillotina.schema import Object
-from guillotina.utils import get_authenticated_user_id
-from guillotina.utils import get_current_request
-from guillotina.utils import to_str
-from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
-from guillotina_gcloudstorage.interfaces import IGCloudFile
-from guillotina_gcloudstorage.interfaces import IGCloudFileField
-from oauth2client.service_account import ServiceAccountCredentials
 from typing import AsyncIterator
 from urllib.parse import quote_plus
-from zope.interface import implementer
 
 import aiohttp
 import asyncio
@@ -35,6 +11,33 @@ import google.cloud.exceptions
 import google.cloud.storage
 import json
 import logging
+from guillotina import configure
+from guillotina import task_vars
+from guillotina.component import get_multi_adapter
+from guillotina.component import get_utility
+from guillotina.exceptions import FileNotFoundException
+from guillotina.files import BaseCloudFile
+from guillotina.interfaces import IApplication
+from guillotina.interfaces import IExternalFileStorageManager
+from guillotina.interfaces import IFileCleanup
+from guillotina.interfaces import IFileNameGenerator
+from guillotina.interfaces import IJSONToValue
+from guillotina.interfaces import IRequest
+from guillotina.interfaces import IResource
+from guillotina.response import HTTPGone
+from guillotina.response import HTTPNotFound
+from guillotina.response import HTTPPreconditionFailed
+from guillotina.schema import Object
+from guillotina.utils import apply_coroutine
+from guillotina.utils import get_authenticated_user_id
+from guillotina.utils import get_current_request
+from guillotina.utils import to_str
+from oauth2client.service_account import ServiceAccountCredentials
+from zope.interface import implementer
+
+from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
+from guillotina_gcloudstorage.interfaces import IGCloudFile
+from guillotina_gcloudstorage.interfaces import IGCloudFileField
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):
@@ -164,7 +167,8 @@ class GCloudFileManager(object):
         if upload_file_id is not None:
             await self.delete_upload(upload_file_id)
 
-        upload_file_id = generate_key(self.context)
+        generator = get_multi_adapter((self.context, self.field), IFileNameGenerator)
+        upload_file_id = await apply_coroutine(generator)
 
         init_url = "{}&name={}".format(
             UPLOAD_URL.format(bucket=await util.get_bucket_name()),
@@ -325,7 +329,8 @@ class GCloudFileManager(object):
             raise HTTPNotFound(
                 content={"reason": "To copy a uri must be set on the object"}
             )
-        new_uri = generate_key(self.context)
+        generator = get_multi_adapter((self.context, self.field), IFileNameGenerator)
+        new_uri = await apply_coroutine(generator)
 
         util = get_utility(IGCloudBlobStore)
         bucket_name = await util.get_bucket_name()

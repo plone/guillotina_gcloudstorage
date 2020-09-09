@@ -17,7 +17,7 @@ pre-checks: pre-checks-deps
 
 lint-deps:
 	#pip install -U "isort>=4,<5" toml==0.10.1
-	pip install 'git+https://github.com/PyCQA/isort.git@4.3.20'
+	pip install 'git+https://github.com/PyCQA/isort.git@4.3.21-2'
 	#black
 
 lint:

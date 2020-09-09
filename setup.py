@@ -28,7 +28,7 @@ setup(
     package_data={"": ["*.txt", "*.rst"], "guillotina_gcloudstorage": ["py.typed"]},
     install_requires=[
         "setuptools",
-        "guillotina>=5.0.0a7",
+        "guillotina>=5.3.48",
         "protobuf",
         "oauth2client",
         "google-cloud-storage",

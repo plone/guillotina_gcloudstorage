@@ -1,7 +1,8 @@
 6.0.1 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Use IFileNameGenerator adapter to generate file name
+  [qiwn]
 
 
 6.0.0 (2020-07-29)

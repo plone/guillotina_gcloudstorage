@@ -6,18 +6,15 @@ from guillotina.interfaces import IFileField
 
 
 class IGCloudFileField(IFileField):
-    """Field marked as GCloudFileField
-    """
+    """Field marked as GCloudFileField"""
 
 
 # Configuration Utility
 
 
 class IGCloudBlobStore(Interface):
-    """Configuration utility.
-    """
+    """Configuration utility."""
 
 
 class IGCloudFile(IFile):
-    """Marker for a GCloudFile
-    """
+    """Marker for a GCloudFile"""

@@ -16,7 +16,8 @@ pre-checks: pre-checks-deps
 	#mypy -p guillotina_gcloudstorage --ignore-missing-imports
 
 lint-deps:
-	pip install -U "isort>=4,<5" toml==0.10.1
+	#pip install -U "isort>=4,<5" toml==0.10.1
+	pip install 'git+https://github.com/PyCQA/isort.git@4.3.20'
 	#black
 
 lint:

@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import AsyncIterator
 from urllib.parse import quote_plus
 
+from zope.interface import implementer
+
 import aiohttp
 import asyncio
 import backoff
@@ -33,7 +35,6 @@ from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
 from guillotina.utils import to_str
 from oauth2client.service_account import ServiceAccountCredentials
-from zope.interface import implementer
 
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile

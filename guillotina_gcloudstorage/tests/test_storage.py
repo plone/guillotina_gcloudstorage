@@ -20,7 +20,6 @@ from guillotina.interfaces import IFileNameGenerator
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina.utils import apply_coroutine
-
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import GCloudFileField

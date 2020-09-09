@@ -3,21 +3,23 @@ from functools import partial
 from hashlib import md5
 from urllib.parse import quote_plus
 
-from zope.interface import Interface
-
 import aiohttp
 import google.cloud.storage
 import pytest
 from guillotina import task_vars
+from guillotina.component import get_multi_adapter
 from guillotina.component import get_utility
 from guillotina.content import Container
 from guillotina.exceptions import UnRetryableRequestError
 from guillotina.files import MAX_REQUEST_CACHE_SIZE
 from guillotina.files import FileManager
 from guillotina.files.adapter import DBDataManager
-from guillotina.files.utils import generate_key
+from guillotina.interfaces import IFileNameGenerator
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
+from guillotina.utils import apply_coroutine
+from zope.interface import Interface
+
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
@@ -227,7 +229,8 @@ async def test_gen_key(dummy_request):
     task_vars.container.set(container)
     with dummy_request:
         ob = create_content()
-        key = generate_key(ob)
+        generator = get_multi_adapter((ob, GCloudFileField()), IFileNameGenerator)
+        key = await apply_coroutine(generator)
         assert key.startswith("test-container/")
         last = key.split("/")[-1]
         assert "::" in last

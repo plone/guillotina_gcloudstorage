@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import AsyncIterator
 from urllib.parse import quote_plus
 
+from zope.interface import implementer
+
 import aiohttp
 import backoff
 import google.api_core.exceptions
@@ -32,12 +34,10 @@ from guillotina.utils import apply_coroutine
 from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
 from guillotina.utils import to_str
-from oauth2client.service_account import ServiceAccountCredentials
-from zope.interface import implementer
-
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):
@@ -423,8 +423,10 @@ class GCloudBlobStore(object):
 
     def get_client(self):
         if self._client is None:
-            self._client = google.cloud.storage.Client.from_service_account_json(  # noqa
-                self._json_credentials
+            self._client = (
+                google.cloud.storage.Client.from_service_account_json(  # noqa
+                    self._json_credentials
+                )
             )
         return self._client
 

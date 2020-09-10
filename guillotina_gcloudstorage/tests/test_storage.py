@@ -3,6 +3,8 @@ from functools import partial
 from hashlib import md5
 from urllib.parse import quote_plus
 
+from zope.interface import Interface
+
 import aiohttp
 import google.cloud.storage
 import pytest
@@ -18,8 +20,6 @@ from guillotina.interfaces import IFileNameGenerator
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina.utils import apply_coroutine
-from zope.interface import Interface
-
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL

@@ -1,4 +1,4 @@
-5.0.15 (unreleased)
+5.0.15 (2020-09-10)
 -------------------
 
 - Use IFileNameGenerator adapter to generate file name

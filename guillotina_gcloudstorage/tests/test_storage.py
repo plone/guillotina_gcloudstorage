@@ -214,7 +214,7 @@ async def test_store_file_when_request_retry_happens(dummy_request, mock_txn):
         assert len(await get_all_objects()) == 0
 
 
-def test_gen_key(dummy_request):
+async def test_gen_key(dummy_request):
     container = create_content(Container, id="test-container")
     task_vars.container.set(container)
     with dummy_request:

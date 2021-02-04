@@ -30,7 +30,6 @@ from typing import AsyncIterator
 from urllib.parse import quote_plus
 from zope.interface import implementer
 
-
 import aiohttp
 import asyncio
 import backoff
@@ -441,10 +440,8 @@ class GCloudBlobStore(object):
 
     def get_client(self):
         if self._client is None:
-            self._client = (
-                google.cloud.storage.Client.from_service_account_json(  # noqa
-                    self._json_credentials
-                )
+            self._client = google.cloud.storage.Client.from_service_account_json(  # noqa
+                self._json_credentials
             )
         return self._client
 

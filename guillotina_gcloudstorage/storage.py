@@ -425,7 +425,7 @@ class GCloudBlobStore(object):
                 if self._credentials.access_token is None or self._credentials.access_token_expired:
                     # re-check after getting lock
                     loop = self._loop or asyncio.get_event_loop()
-                    return await loop.run_in_executor(None, self._credentials.refresh, None)
+                    await loop.run_in_executor(None, self._credentials.refresh, None)
 
         return AccessTokenInfo(
             access_token=self._credentials.access_token, expires_in=self._credentials._expires_in())

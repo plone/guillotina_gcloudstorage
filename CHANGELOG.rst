@@ -1,7 +1,8 @@
 5.0.17 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- only run async if necessary
+  [vangheem]
 
 
 5.0.16 (2021-02-04)

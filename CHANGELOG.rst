@@ -1,7 +1,8 @@
 5.0.16 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Get access token in executor
+  [vangheem]
 
 
 5.0.15 (2020-09-10)

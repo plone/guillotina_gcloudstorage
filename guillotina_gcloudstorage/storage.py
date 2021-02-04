@@ -36,6 +36,7 @@ from guillotina.utils import to_str
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
+from oauth2client import transport
 from oauth2client.client import AccessTokenInfo
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -425,7 +426,7 @@ class GCloudBlobStore(object):
                 if self._credentials.access_token is None or self._credentials.access_token_expired:
                     # re-check after getting lock
                     loop = self._loop or asyncio.get_event_loop()
-                    await loop.run_in_executor(None, self._credentials.refresh, None)
+                    await loop.run_in_executor(None, self._credentials.refresh, transport.get_http_object())
 
         return AccessTokenInfo(
             access_token=self._credentials.access_token, expires_in=self._credentials._expires_in())

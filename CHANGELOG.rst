@@ -1,6 +1,9 @@
 6.0.1 (unreleased)
 ------------------
 
+- Get get access token in executor
+  [vangheem]
+
 - Use IFileNameGenerator adapter to generate file name
 - black, isort reformat
   [qiwn]

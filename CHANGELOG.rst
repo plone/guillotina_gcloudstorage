@@ -1,4 +1,4 @@
-5.0.17 (unreleased)
+5.0.17 (2021-02-04)
 -------------------
 
 - only run async if necessary

@@ -1,4 +1,4 @@
-6.0.1 (unreleased)
+6.0.1 (2021-02-04)
 ------------------
 
 - Get get access token in executor

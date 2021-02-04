@@ -33,6 +33,7 @@ from guillotina.schema import Object
 from guillotina.utils import apply_coroutine
 from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
+from guillotina.utils import run_async
 from guillotina.utils import to_str
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
@@ -419,7 +420,7 @@ class GCloudBlobStore(object):
         return access_token.access_token
 
     async def get_access_token(self):
-        return self._get_access_token()
+        return await run_async(self._get_access_token)
 
     def get_client(self):
         if self._client is None:

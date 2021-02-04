@@ -428,8 +428,7 @@ class GCloudBlobStore(object):
                     loop = self._loop or asyncio.get_event_loop()
                     await loop.run_in_executor(None, self._credentials.refresh, transport.get_http_object())
 
-        return AccessTokenInfo(
-            access_token=self._credentials.access_token, expires_in=self._credentials._expires_in())
+        return self._credentials.access_token
 
     def get_client(self):
         if self._client is None:

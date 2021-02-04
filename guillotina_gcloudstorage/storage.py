@@ -1,18 +1,5 @@
 # -*- coding: utf-8 -*-
-import asyncio
-import json
-import logging
 from datetime import datetime
-from typing import AsyncIterator
-from urllib.parse import quote_plus
-
-from zope.interface import implementer
-
-import aiohttp
-import backoff
-import google.api_core.exceptions
-import google.cloud.exceptions
-import google.cloud.storage
 from guillotina import configure
 from guillotina import task_vars
 from guillotina.component import get_multi_adapter
@@ -39,6 +26,18 @@ from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
 from oauth2client import transport
 from oauth2client.service_account import ServiceAccountCredentials
+from typing import AsyncIterator
+from urllib.parse import quote_plus
+from zope.interface import implementer
+
+import aiohttp
+import asyncio
+import backoff
+import google.api_core.exceptions
+import google.cloud.exceptions
+import google.cloud.storage
+import json
+import logging
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):
@@ -422,12 +421,20 @@ class GCloudBlobStore(object):
         return self._session
 
     async def get_access_token(self):
-        if self._credentials.access_token is None or self._credentials.access_token_expired:
+        if (
+            self._credentials.access_token is None
+            or self._credentials.access_token_expired
+        ):
             async with self.lock:
-                if self._credentials.access_token is None or self._credentials.access_token_expired:
+                if (
+                    self._credentials.access_token is None
+                    or self._credentials.access_token_expired
+                ):
                     # re-check after getting lock
                     loop = self._loop or asyncio.get_event_loop()
-                    await loop.run_in_executor(None, self._credentials.refresh, transport.get_http_object())
+                    await loop.run_in_executor(
+                        None, self._credentials.refresh, transport.get_http_object()
+                    )
 
         return self._credentials.access_token
 

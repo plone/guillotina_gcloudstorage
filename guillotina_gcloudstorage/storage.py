@@ -368,6 +368,10 @@ class GCloudFileManager(object):
                     }
                 )
 
+    async def delete(self):
+        file = self.field.get(self.field.context or self.context)
+        await self.delete_upload(file.uri)
+
 
 @implementer(IGCloudFileField)
 class GCloudFileField(Object):

@@ -1,20 +1,11 @@
-import base64
 from functools import partial
-from hashlib import md5
-from urllib.parse import quote_plus
-
-from zope.interface import Interface
-
-import aiohttp
-import google.cloud.storage
-import pytest
 from guillotina import task_vars
 from guillotina.component import get_multi_adapter
 from guillotina.component import get_utility
 from guillotina.content import Container
 from guillotina.exceptions import UnRetryableRequestError
-from guillotina.files import MAX_REQUEST_CACHE_SIZE
 from guillotina.files import FileManager
+from guillotina.files import MAX_REQUEST_CACHE_SIZE
 from guillotina.files.adapter import DBDataManager
 from guillotina.interfaces import IFileNameGenerator
 from guillotina.tests.utils import create_content
@@ -22,10 +13,18 @@ from guillotina.tests.utils import login
 from guillotina.utils import apply_coroutine
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
-from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
-from guillotina_gcloudstorage.storage import UPLOAD_URL
 from guillotina_gcloudstorage.storage import GCloudFileField
 from guillotina_gcloudstorage.storage import GCloudFileManager
+from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
+from guillotina_gcloudstorage.storage import UPLOAD_URL
+from hashlib import md5
+from urllib.parse import quote_plus
+from zope.interface import Interface
+
+import aiohttp
+import base64
+import google.cloud.storage
+import pytest
 
 
 _test_gif = base64.b64decode(

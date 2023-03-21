@@ -1,7 +1,7 @@
 6.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Add delete method
 
 
 6.0.2 (2021-05-05)

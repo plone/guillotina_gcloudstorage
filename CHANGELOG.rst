@@ -1,7 +1,8 @@
 6.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Get access token with lock
+  [vangheem]
 
 
 6.0.3 (2023-03-21)

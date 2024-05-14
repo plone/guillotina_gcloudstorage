@@ -1,18 +1,5 @@
 # -*- coding: utf-8 -*-
-import asyncio
-import json
-import logging
 from datetime import datetime
-from typing import AsyncIterator
-from urllib.parse import quote_plus
-
-from zope.interface import implementer
-
-import aiohttp
-import backoff
-import google.api_core.exceptions
-import google.cloud.exceptions
-import google.cloud.storage
 from guillotina import configure
 from guillotina import task_vars
 from guillotina.component import get_multi_adapter
@@ -33,12 +20,24 @@ from guillotina.schema import Object
 from guillotina.utils import apply_coroutine
 from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
-from guillotina.utils import run_async
 from guillotina.utils import to_str
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
+from oauth2client import transport
 from oauth2client.service_account import ServiceAccountCredentials
+from typing import AsyncIterator
+from urllib.parse import quote_plus
+from zope.interface import implementer
+
+import aiohttp
+import asyncio
+import backoff
+import google.api_core.exceptions
+import google.cloud.exceptions
+import google.cloud.storage
+import json
+import logging
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):
@@ -411,6 +410,13 @@ class GCloudBlobStore(object):
         self._creation_access_token = datetime.now()
         self._client = None
         self._session = None
+        self._lock = None
+
+    @property
+    def lock(self):
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     @property
     def session(self):
@@ -418,20 +424,28 @@ class GCloudBlobStore(object):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    def _get_access_token(self):
-        access_token = self._credentials.get_access_token()
-        self._creation_access_token = datetime.now()
-        return access_token.access_token
-
     async def get_access_token(self):
-        return await run_async(self._get_access_token)
+        if (
+            self._credentials.access_token is None
+            or self._credentials.access_token_expired
+        ):
+            async with self.lock:
+                if (
+                    self._credentials.access_token is None
+                    or self._credentials.access_token_expired
+                ):
+                    # re-check after getting lock
+                    loop = self._loop or asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        None, self._credentials.refresh, transport.get_http_object()
+                    )
+
+        return self._credentials.access_token
 
     def get_client(self):
         if self._client is None:
-            self._client = (
-                google.cloud.storage.Client.from_service_account_json(  # noqa
-                    self._json_credentials
-                )
+            self._client = google.cloud.storage.Client.from_service_account_json(  # noqa
+                self._json_credentials
             )
         return self._client
 

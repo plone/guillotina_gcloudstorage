@@ -1,7 +1,8 @@
 6.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Add the ability to request specific pages from a bucket 
+  [OnnaRob]
 
 
 6.0.3 (2023-03-21)

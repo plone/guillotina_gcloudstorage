@@ -521,35 +521,36 @@ class GCloudBlobStore(object):
         self.app = app
 
     async def iterate_bucket(self):
+        data = await self.iterate_bucket_page()
+        if "items" not in data:
+            return
+        for item in data["items"]:
+            yield item
+
+        page_token = data.get("nextPageToken")
+        while page_token is not None:
+            data = await self.iterate_bucket_page(page_token)
+            items = data.get("items", [])
+            if len(items) == 0:
+                break
+            for item in items:
+                yield item
+            page_token = data.get("nextPageToken")
+
+    async def iterate_bucket_page(self, page_token=None):
         url = "{}/{}/o".format(OBJECT_BASE_URL, await self.get_bucket_name())
         container = task_vars.container.get()
+        params = {"prefix": container.id}
+        if page_token:
+            params["pageToken"] = page_token
+
         async with self.session.get(
             url,
             headers={
                 "AUTHORIZATION": "Bearer {}".format(await self.get_access_token())
             },
-            params={"prefix": container.id + "/"},
+            params=params,
         ) as resp:
             assert resp.status == 200
             data = await resp.json()
-            if "items" not in data:
-                return
-            for item in data["items"]:
-                yield item
-
-        page_token = data.get("nextPageToken")
-        while page_token is not None:
-            async with self.session.get(
-                url,
-                headers={
-                    "AUTHORIZATION": "Bearer {}".format(await self.get_access_token())
-                },
-                params={"prefix": container.id, "pageToken": page_token},
-            ) as resp:
-                data = await resp.json()
-                items = data.get("items", [])
-                if len(items) == 0:
-                    break
-                for item in items:
-                    yield item
-                page_token = data.get("nextPageToken")
+            return data

@@ -20,6 +20,7 @@ from guillotina.interfaces import IFileNameGenerator
 from guillotina.tests.utils import create_content
 from guillotina.tests.utils import login
 from guillotina.utils import apply_coroutine
+from guillotina.utils import get_content_path
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.storage import CHUNK_SIZE
 from guillotina_gcloudstorage.storage import OBJECT_BASE_URL
@@ -275,6 +276,9 @@ async def test_copy(dummy_request, mock_txn):
         new_ob.file.content_type == ob.file.content_type
         new_ob.file.size == ob.file.size
         new_ob.file.uri != ob.file.uri
+        assert new_ob.file.uri.startswith(
+            "{}{}/".format(container.id, get_content_path(new_ob))
+        )
 
         items = await get_all_objects()
         assert len(items) == 2

@@ -330,7 +330,9 @@ class GCloudFileManager(object):
             raise HTTPNotFound(
                 content={"reason": "To copy a uri must be set on the object"}
             )
-        generator = get_multi_adapter((self.context, self.field), IFileNameGenerator)
+        generator = get_multi_adapter(
+            (to_storage_manager.context, to_storage_manager.field), IFileNameGenerator
+        )
         new_uri = await apply_coroutine(generator)
 
         util = get_utility(IGCloudBlobStore)

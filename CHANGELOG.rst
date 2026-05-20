@@ -1,7 +1,8 @@
 6.0.4 (unreleased)
 ------------------
 
-- Drop Python 3.7, 3.8, and 3.9 support. CI now validates Python 3.10 and 3.12.
+- Drop Python 3.7, 3.8, and 3.9 support. CI now validates Python 3.10,
+  3.11, and 3.12.
 
 
 6.0.3 (2023-03-21)

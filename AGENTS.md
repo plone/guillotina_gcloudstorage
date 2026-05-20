@@ -14,7 +14,7 @@
 - Tests: `make tests`
 
 ## Validation
-- CI runs `make pre-checks` on Python 3.10 and 3.12.
+- CI runs `make pre-checks` on Python 3.10, 3.11, and 3.12.
 - Some storage tests need Google Cloud credentials or mocked GCS behavior; avoid assuming the full test suite is runnable without that local setup.
 
 ## Deployment Notes

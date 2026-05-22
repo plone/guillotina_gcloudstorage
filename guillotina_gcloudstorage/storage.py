@@ -6,13 +6,13 @@ from datetime import datetime
 from typing import AsyncIterator
 from urllib.parse import quote_plus
 
-from zope.interface import implementer
-
 import aiohttp
 import backoff
 import google.api_core.exceptions
 import google.cloud.exceptions
 import google.cloud.storage
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2.service_account import Credentials
 from guillotina import configure
 from guillotina import task_vars
 from guillotina.component import get_multi_adapter
@@ -35,10 +35,11 @@ from guillotina.utils import get_authenticated_user_id
 from guillotina.utils import get_current_request
 from guillotina.utils import run_async
 from guillotina.utils import to_str
+from zope.interface import implementer
+
 from guillotina_gcloudstorage.interfaces import IGCloudBlobStore
 from guillotina_gcloudstorage.interfaces import IGCloudFile
 from guillotina_gcloudstorage.interfaces import IGCloudFileField
-from oauth2client.service_account import ServiceAccountCredentials
 
 
 class IGCloudFileStorageManager(IExternalFileStorageManager):
@@ -330,7 +331,9 @@ class GCloudFileManager(object):
             raise HTTPNotFound(
                 content={"reason": "To copy a uri must be set on the object"}
             )
-        generator = get_multi_adapter((self.context, self.field), IFileNameGenerator)
+        generator = get_multi_adapter(
+            (to_storage_manager.context, to_storage_manager.field), IFileNameGenerator
+        )
         new_uri = await apply_coroutine(generator)
 
         util = get_utility(IGCloudBlobStore)
@@ -393,8 +396,8 @@ class GCloudBlobStore(object):
     def __init__(self, settings, loop=None):
         self._loop = loop
         self._json_credentials = settings["json_credentials"]
-        self._credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            self._json_credentials, SCOPES
+        self._credentials = Credentials.from_service_account_file(
+            self._json_credentials, scopes=SCOPES
         )
         self._bucket_name = settings["bucket"]
         self._location = settings.get("location", None)
@@ -419,9 +422,10 @@ class GCloudBlobStore(object):
         return self._session
 
     def _get_access_token(self):
-        access_token = self._credentials.get_access_token()
+        if not self._credentials.valid:
+            self._credentials.refresh(GoogleAuthRequest())
         self._creation_access_token = datetime.now()
-        return access_token.access_token
+        return self._credentials.token
 
     async def get_access_token(self):
         return await run_async(self._get_access_token)

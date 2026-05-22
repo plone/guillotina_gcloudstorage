@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from guillotina import configure
 
-
 app_settings = {"cloud_storage": "guillotina_gcloudstorage.interfaces.IGCloudFileField"}
 
 

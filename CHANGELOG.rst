@@ -1,7 +1,24 @@
-6.0.4 (unreleased)
+7.0.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Drop Python 3.7, 3.8, and 3.9 support. CI now validates Python 3.10,
+  3.11, and 3.12.
+
+- Require Guillotina 7.
+
+- Upgrade runtime dependencies for the Python 3.10+ stack, including
+  google-cloud-storage, google-auth, aiohttp, and backoff.
+
+- Replace legacy oauth2client service account credentials with google-auth.
+
+- Remove unused or legacy setup dependencies: gcloud, ujson, protobuf,
+  setuptools, pytest-runner, and tests_require.
+
+- Upgrade test and lint tooling: pytest, pytest-aiohttp,
+  pytest-docker-fixtures, flake8, mypy, mypy-zope, isort, and black.
+
+- Generate copied Google Cloud Storage object names from the destination
+  storage manager instead of the source storage manager.
 
 
 6.0.3 (2023-03-21)

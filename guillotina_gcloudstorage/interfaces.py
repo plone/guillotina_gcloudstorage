@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-from zope.interface import Interface
-
 from guillotina.interfaces import IFile
 from guillotina.interfaces import IFileField
+from zope.interface import Interface
 
 
 class IGCloudFileField(IFileField):

@@ -1,4 +1,4 @@
-7.0.0 (unreleased)
+7.0.0 (2026-05-22)
 ------------------
 
 - Drop Python 3.7, 3.8, and 3.9 support. CI now validates Python 3.10,
